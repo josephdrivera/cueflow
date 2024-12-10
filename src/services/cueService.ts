@@ -39,14 +39,14 @@ export async function createCue(cue: NewCue): Promise<Cue> {
   if (queryError) throw queryError;
 
   // Generate the next cue number
-  let nextNumber = 1;
+  let nextNumber = 101;
   if (existingCues && existingCues.length > 0) {
     const lastNumber = parseInt(existingCues[0].cue_number.substring(1));
     nextNumber = lastNumber + 1;
   }
 
-  // Format the new cue number (e.g., 'A001')
-  const newCueNumber = `${prefix}${nextNumber.toString().padStart(3, '0')}`;
+  // Format the new cue number (e.g., 'A101')
+  const newCueNumber = `${prefix}${nextNumber.toString()}`;
   const newCue = { ...cue, cue_number: newCueNumber };
 
   const { data, error } = await supabase
@@ -96,7 +96,7 @@ export async function insertCueBetween(
   let newCueNumber: string;
   if (!previousCue && !nextCue) {
     // First cue in the show
-    newCueNumber = 'A001';
+    newCueNumber = 'A101';
   } else if (!previousCue) {
     // Insert at beginning
     newCueNumber = generateCueNumberBefore(nextCue!.cue_number);
@@ -131,8 +131,8 @@ export async function insertCueBetween(
 function generateCueNumberBefore(number: string): string {
   const prefix = number.charAt(0);
   const numeric = parseInt(number.substring(1));
-  if (numeric > 1) {
-    return `${prefix}${(numeric - 1).toString().padStart(3, '0')}`;
+  if (numeric > 101) {
+    return `${prefix}${(numeric - 1).toString()}`;
   }
   // If we can't decrement, we need a new prefix
   const newPrefix = String.fromCharCode(prefix.charCodeAt(0) - 1);
@@ -143,11 +143,11 @@ function generateCueNumberAfter(number: string): string {
   const prefix = number.charAt(0);
   const numeric = parseInt(number.substring(1));
   if (numeric < 999) {
-    return `${prefix}${(numeric + 1).toString().padStart(3, '0')}`;
+    return `${prefix}${(numeric + 1).toString()}`;
   }
   // If we can't increment, we need a new prefix
   const newPrefix = String.fromCharCode(prefix.charCodeAt(0) + 1);
-  return `${newPrefix}001`;
+  return `${newPrefix}101`;
 }
 
 function generateCueNumberBetween(before: string, after: string): string {
@@ -160,11 +160,11 @@ function generateCueNumberBetween(before: string, after: string): string {
     if (afterNumeric - beforeNumeric > 1) {
       // There's space between the numbers
       const middle = Math.floor((beforeNumeric + afterNumeric) / 2);
-      return `${beforePrefix}${middle.toString().padStart(3, '0')}`;
+      return `${beforePrefix}${middle.toString()}`;
     }
     // No space between numbers, need to use a new prefix
     const newPrefix = String.fromCharCode(beforePrefix.charCodeAt(0) + 1);
-    return `${newPrefix}001`;
+    return `${newPrefix}101`;
   }
 
   // Different prefixes, use the first prefix with the next number

@@ -1,21 +1,21 @@
 "use client"
 
 import * as Dialog from '@radix-ui/react-dialog';
-import { Cue } from '../types/cue';
+import { Cue, NewCue } from '../types/cue';
 import { useState } from 'react';
 
 interface CueModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (cue: Cue) => void;
+  onSubmit: (cue: Cue | Omit<NewCue, 'cue_number'>) => void;
   initialData?: Cue;
   mode: 'add' | 'edit';
 }
 
 export function CueModal({ isOpen, onClose, onSubmit, initialData, mode }: CueModalProps) {
-  const [formData, setFormData] = useState<Cue>(
+  const [formData, setFormData] = useState<Partial<Cue>>(
     initialData || {
-      id: '',
+      show_id: "123e4567-e89b-12d3-a456-426614174000",
       start_time: '',
       run_time: '',
       end_time: '',
@@ -52,6 +52,36 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode }: CueMo
           </Dialog.Title>
           
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <label htmlFor="show_id" className="block text-sm font-medium">
+                Show ID
+              </label>
+              <input
+                type="text"
+                id="show_id"
+                name="show_id"
+                value={formData.show_id}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border rounded-md dark:bg-gray-700"
+              />
+            </div>
+
+            {mode === 'add' && (
+              <div className="space-y-2">
+                <label htmlFor="cue_number" className="block text-sm font-medium">
+                  Cue Number
+                </label>
+                <input
+                  type="text"
+                  id="cue_number"
+                  name="cue_number"
+                  value={formData.cue_number}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border rounded-md dark:bg-gray-700"
+                />
+              </div>
+            )}
+
             <div className="space-y-2">
               <label htmlFor="start_time" className="block text-sm font-medium">
                 Start Time
