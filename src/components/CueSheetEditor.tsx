@@ -7,10 +7,12 @@ import { ThemeToggle } from "./ThemeToggle"
 import { CueModal } from './CueModal';
 import { Cue, NewCue } from "@/types/cue";
 import { insertCueBetween, getAllCues, updateCue } from "@/services/cueService";
+import { Show, createShow, getAllShows } from "@/services/showService";
 import { cn } from "@/lib/utils";
 
 export default function CueSheetEditor() {
   const [cues, setCues] = React.useState<Cue[]>([]);
+  const [show, setShow] = React.useState<Show | null>(null);
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [selectedCue, setSelectedCue] = React.useState<Cue | undefined>();
   const [modalMode, setModalMode] = React.useState<'add' | 'edit'>('add');
@@ -21,21 +23,55 @@ export default function CueSheetEditor() {
   const [insertMenuOpen, setInsertMenuOpen] = React.useState<string | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
 
-  // Load cues when component mounts
+  // Load or create show and its cues when component mounts
   React.useEffect(() => {
-    const loadCues = async () => {
+    const loadShowAndCues = async () => {
       try {
-        const showId = "123e4567-e89b-12d3-a456-426614174000"; // You might want to get this from props or context
-        const loadedCues = await getAllCues(showId);
-        setCues(loadedCues);
-      } catch (error) {
-        console.error('Error loading cues:', error);
+        // Try to get all shows first
+        const shows = await getAllShows();
+        console.log('Existing shows:', shows);
+
+        let currentShow: Show;
+        if (shows.length === 0) {
+          // Create a default show if none exist
+          console.log('No shows found, creating default show');
+          currentShow = await createShow({ 
+            title: "Default Show",
+            description: "Default show created automatically"
+          });
+          console.log('Created new show:', currentShow);
+        } else {
+          // Use the first show
+          currentShow = shows[0];
+          console.log('Using existing show:', currentShow);
+        }
+        
+        setShow(currentShow);
+
+        // Now load the cues for this show
+        try {
+          const loadedCues = await getAllCues(currentShow.id);
+          console.log('Loaded cues:', loadedCues);
+          setCues(loadedCues);
+        } catch (error: any) {
+          console.error('Error loading cues:', error);
+          // Don't throw here, we can still use the app without cues
+          setCues([]);
+        }
+      } catch (error: any) {
+        console.error('Error in loadShowAndCues:', error);
+        if (error.message) {
+          console.error('Error details:', error.message);
+        }
+        if (error.details) {
+          console.error('Additional details:', error.details);
+        }
       } finally {
         setIsLoading(false);
       }
     };
 
-    loadCues();
+    loadShowAndCues();
   }, []);
 
   const handleAddCue = () => {
@@ -62,9 +98,13 @@ export default function CueSheetEditor() {
 
   const handleSubmitCue = async (cue: Partial<Cue>) => {
     try {
+      if (!show) {
+        throw new Error('No show loaded');
+      }
+
       if (modalMode === 'add') {
         const cueData: Omit<NewCue, 'cue_number'> = {
-          show_id: "123e4567-e89b-12d3-a456-426614174000",
+          show_id: show.id,
           previous_cue_id: insertPosition?.previousId || null,
           next_cue_id: insertPosition?.nextId || null,
           start_time: cue.start_time || '',
@@ -102,22 +142,39 @@ export default function CueSheetEditor() {
             null,
             cueData
           );
-          setCues([...cues, newCue]);
+          setCues(prevCues => [...prevCues, newCue]);
         }
       } else if (cue.id) {
         // Edit existing cue
-        const updatedCue = await updateCue(cue.id, cue);
+        const updatedCue = await updateCue(cue.id, {
+          start_time: cue.start_time || '',
+          run_time: cue.run_time || '',
+          end_time: cue.end_time || '',
+          activity: cue.activity || '',
+          graphics: cue.graphics || '',
+          video: cue.video || '',
+          audio: cue.audio || '',
+          lighting: cue.lighting || '',
+          notes: cue.notes || '',
+        });
         setCues(prevCues => prevCues.map((c) => (c.id === updatedCue.id ? updatedCue : c)));
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving cue:', error);
+      if (error.message) {
+        console.error('Error details:', error.message);
+      }
+      if (error.details) {
+        console.error('Additional details:', error.details);
+      }
+      throw error;
     }
   };
 
   return (
     <div className="flex flex-col h-screen">
       <header className="flex justify-between items-center p-4 border-b">
-        <h1 className="text-2xl font-bold">CueFlow: Event Name</h1>
+        <h1 className="text-2xl font-bold">CueFlow: {show?.title}</h1>
         <div className="flex items-center space-x-4">
           <ThemeToggle />
           <button className="inline-flex items-center px-4 py-2 rounded-md border">

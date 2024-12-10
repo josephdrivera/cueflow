@@ -3,6 +3,7 @@ import { Cue, NewCue } from '@/types/cue';
 
 const TABLE_NAME = 'cues';
 
+// Helper functions
 export async function getAllCues(showId: string): Promise<Cue[]> {
   const { data, error } = await supabase
     .from(TABLE_NAME)
@@ -14,7 +15,7 @@ export async function getAllCues(showId: string): Promise<Cue[]> {
   return data || [];
 }
 
-export async function getCueById(id: string): Promise<Cue> {
+export async function getCueById(id: string): Promise<Cue> { 
   const { data, error } = await supabase
     .from(TABLE_NAME)
     .select('*')
