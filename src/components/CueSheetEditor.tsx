@@ -3,29 +3,101 @@
 import * as React from "react"
 import { Clock, Edit2, Plus, Settings, X } from 'lucide-react'
 import { ThemeToggle } from "./ThemeToggle"
+import { CueModal } from './CueModal';
+
+interface Cue {
+  id: string;
+  startTime: string;
+  runTime: string;
+  endTime: string;
+  activity: string;
+  graphics: string;
+  video: string;
+  audio: string;
+  lighting: string;
+  notes: string;
+}
 
 export default function CueSheetEditor() {
-  const [showDetails, setShowDetails] = React.useState(false)
-  const [editingCue, setEditingCue] = React.useState(null)
-  const [isAdding, setIsAdding] = React.useState(false)
+  const [cues, setCues] = React.useState<Cue[]>([
+    {
+      id: "Q1",
+      startTime: "00:00:00",
+      runTime: "00:01:30",
+      endTime: "00:01:30",
+      activity: "Show Start",
+      graphics: "Title Slide",
+      video: "-",
+      audio: "Intro Music",
+      lighting: "House Lights",
+      notes: "Ensure house lights at 50%"
+    },
+    {
+      id: "Q2",
+      startTime: "00:01:30",
+      runTime: "00:01:30",
+      endTime: "00:03:00",
+      activity: "Intro Video",
+      graphics: "-",
+      video: "Welcome.mp4",
+      audio: "Video Audio",
+      lighting: "Stage Dark",
+      notes: "Fade house lights to 0%"
+    },
+    {
+      id: "Q3",
+      startTime: "00:03:00",
+      runTime: "00:07:00",
+      endTime: "00:10:00",
+      activity: "Welcome Speech",
+      graphics: "Speaker Lower Third",
+      video: "-",
+      audio: "Mic 1",
+      lighting: "Stage Wash",
+      notes: "Speaker enters from stage right"
+    },
+    {
+      id: "Q4",
+      startTime: "00:10:00",
+      runTime: "00:02:00",
+      endTime: "00:12:00",
+      activity: "Transition",
+      graphics: "Transition Slide",
+      video: "-",
+      audio: "Transition Music",
+      lighting: "Color Wash",
+      notes: "Smooth fade to next segment"
+    },
+  ]);
+  const [isModalOpen, setIsModalOpen] = React.useState(false);
+  const [selectedCue, setSelectedCue] = React.useState<Cue | undefined>();
+  const [modalMode, setModalMode] = React.useState<'add' | 'edit'>('add');
 
-  const handleAddNew = () => {
-    setEditingCue(null)
-    setIsAdding(true)
-    setShowDetails(true)
-  }
+  const handleAddCue = () => {
+    setModalMode('add');
+    setSelectedCue(undefined);
+    setIsModalOpen(true);
+  };
 
-  const handleEdit = (cue) => {
-    setEditingCue(cue)
-    setIsAdding(false)
-    setShowDetails(true)
-  }
+  const handleEditCue = (cue: Cue) => {
+    setModalMode('edit');
+    setSelectedCue(cue);
+    setIsModalOpen(true);
+  };
 
-  const handleClose = () => {
-    setShowDetails(false)
-    setEditingCue(null)
-    setIsAdding(false)
-  }
+  const handleSubmitCue = async (cue: Cue) => {
+    try {
+      if (modalMode === 'add') {
+        const newCue = cue;
+        setCues([...cues, newCue]);
+      } else {
+        const updatedCue = cue;
+        setCues(cues.map((c) => (c.id === updatedCue.id ? updatedCue : c)));
+      }
+    } catch (error) {
+      console.error('Error saving cue:', error);
+    }
+  };
 
   return (
     <div className="flex h-screen flex-col">
@@ -44,11 +116,11 @@ export default function CueSheetEditor() {
         </div>
       </header>
       <main className="flex flex-1 overflow-hidden">
-        <div className={showDetails ? "w-1/2 border-r p-4" : "flex-1 p-4"}>
+        <div className="flex-1 p-4">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-xl font-semibold">Cue List</h2>
             <button 
-              onClick={handleAddNew}
+              onClick={handleAddCue}
               className="inline-flex items-center px-3 py-1.5 border rounded-md text-sm hover:bg-gray-50"
             >
               <Plus className="mr-2 h-4 w-4" />
@@ -80,56 +152,7 @@ export default function CueSheetEditor() {
                 </tr>
               </thead>
               <tbody>
-                {[
-                  {
-                    id: "Q1",
-                    startTime: "00:00:00",
-                    runTime: "00:01:30",
-                    endTime: "00:01:30",
-                    activity: "Show Start",
-                    graphics: "Title Slide",
-                    video: "-",
-                    audio: "Intro Music",
-                    lighting: "House Lights",
-                    notes: "Ensure house lights at 50%"
-                  },
-                  {
-                    id: "Q2",
-                    startTime: "00:01:30",
-                    runTime: "00:01:30",
-                    endTime: "00:03:00",
-                    activity: "Intro Video",
-                    graphics: "-",
-                    video: "Welcome.mp4",
-                    audio: "Video Audio",
-                    lighting: "Stage Dark",
-                    notes: "Fade house lights to 0%"
-                  },
-                  {
-                    id: "Q3",
-                    startTime: "00:03:00",
-                    runTime: "00:07:00",
-                    endTime: "00:10:00",
-                    activity: "Welcome Speech",
-                    graphics: "Speaker Lower Third",
-                    video: "-",
-                    audio: "Mic 1",
-                    lighting: "Stage Wash",
-                    notes: "Speaker enters from stage right"
-                  },
-                  {
-                    id: "Q4",
-                    startTime: "00:10:00",
-                    runTime: "00:02:00",
-                    endTime: "00:12:00",
-                    activity: "Transition",
-                    graphics: "Transition Slide",
-                    video: "-",
-                    audio: "Transition Music",
-                    lighting: "Color Wash",
-                    notes: "Smooth fade to next segment"
-                  },
-                ].map((cue, index) => (
+                {cues.map((cue, index) => (
                   <tr key={index} className="border-b hover:bg-accent hover:text-accent-foreground">
                     <td className="p-2">{cue.id}</td>
                     <td className="p-2">{cue.startTime}</td>
@@ -143,7 +166,7 @@ export default function CueSheetEditor() {
                     <td className="p-2">{cue.notes}</td>
                     <td className="p-2">
                       <button 
-                        onClick={() => handleEdit(cue)}
+                        onClick={() => handleEditCue(cue)}
                         className="p-1 hover:bg-accent hover:text-accent-foreground rounded-md"
                       >
                         <Edit2 className="h-4 w-4" />
@@ -155,117 +178,13 @@ export default function CueSheetEditor() {
             </table>
           </div>
         </div>
-        {showDetails && (
-          <div className="w-1/2 p-4 overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold">
-                {isAdding ? "Add New Cue" : "Edit Cue"}
-              </h2>
-              <button 
-                onClick={handleClose}
-                className="p-1 hover:bg-gray-100 rounded-md"
-              >
-                <X className="h-5 w-5 text-gray-500" />
-              </button>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <label className="mb-2 block text-sm font-medium">Cue ID</label>
-                <input
-                  type="text"
-                  className="w-full px-3 py-2 border rounded-md"
-                  defaultValue={editingCue?.id || ""}
-                  placeholder="Enter Cue ID"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm font-medium">Start Time</label>
-                <input
-                  type="text"
-                  className="w-full px-3 py-2 border rounded-md"
-                  defaultValue={editingCue?.startTime || ""}
-                  placeholder="Enter start time (HH:MM:SS)"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm font-medium">Run Time</label>
-                <input
-                  type="text"
-                  className="w-full px-3 py-2 border rounded-md"
-                  defaultValue={editingCue?.runTime || ""}
-                  placeholder="Enter run time (HH:MM:SS)"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm font-medium">End Time</label>
-                <input
-                  type="text"
-                  className="w-full px-3 py-2 border rounded-md"
-                  defaultValue={editingCue?.endTime || ""}
-                  placeholder="Enter end time (HH:MM:SS)"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm font-medium">Activity</label>
-                <input
-                  type="text"
-                  className="w-full px-3 py-2 border rounded-md"
-                  defaultValue={editingCue?.activity || ""}
-                  placeholder="Enter activity"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm font-medium">Graphics</label>
-                <input
-                  type="text"
-                  className="w-full px-3 py-2 border rounded-md"
-                  defaultValue={editingCue?.graphics || ""}
-                  placeholder="Enter graphics"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm font-medium">Video</label>
-                <input
-                  type="text"
-                  className="w-full px-3 py-2 border rounded-md"
-                  defaultValue={editingCue?.video || ""}
-                  placeholder="Enter video"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm font-medium">Audio</label>
-                <input
-                  type="text"
-                  className="w-full px-3 py-2 border rounded-md"
-                  defaultValue={editingCue?.audio || ""}
-                  placeholder="Enter audio"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm font-medium">Lighting</label>
-                <input
-                  type="text"
-                  className="w-full px-3 py-2 border rounded-md"
-                  defaultValue={editingCue?.lighting || ""}
-                  placeholder="Enter lighting"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm font-medium">Notes</label>
-                <textarea
-                  className="w-full rounded-md border p-2"
-                  rows={4}
-                  defaultValue={editingCue?.notes || ""}
-                  placeholder="Enter any additional notes"
-                />
-              </div>
-              <button className="inline-flex items-center px-4 py-2 border rounded-md bg-blue-500 text-white hover:bg-blue-600">
-                <Edit2 className="mr-2 h-4 w-4" />
-                {isAdding ? "Add Cue" : "Update Cue"}
-              </button>
-            </div>
-          </div>
-        )}
+        <CueModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          onSubmit={handleSubmitCue}
+          initialData={selectedCue}
+          mode={modalMode}
+        />
       </main>
     </div>
   )
