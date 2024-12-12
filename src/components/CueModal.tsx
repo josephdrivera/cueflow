@@ -2,7 +2,7 @@
 
 import * as Dialog from '@radix-ui/react-dialog';
 import { Cue, NewCue } from '../types/cue';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface CueModalProps {
   isOpen: boolean;
@@ -13,8 +13,16 @@ interface CueModalProps {
 }
 
 export function CueModal({ isOpen, onClose, onSubmit, initialData, mode }: CueModalProps) {
-  const [formData, setFormData] = useState<Partial<Cue>>(
-    initialData || {
+  const [formData, setFormData] = useState<Partial<Cue>>(() => {
+    if (initialData) {
+      return {
+        ...initialData,
+        display_id: initialData.cue_number, // Map cue_number to display_id
+      };
+    }
+    // For new cues, start with empty fields
+    return {
+      display_id: '',
       start_time: '',
       run_time: '',
       end_time: '',
@@ -24,9 +32,18 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode }: CueMo
       audio: '',
       lighting: '',
       notes: '',
-      display_id: '',
+    };
+  });
+
+  // Update formData when initialData changes
+  useEffect(() => {
+    if (initialData) {
+      setFormData({
+        ...initialData,
+        display_id: initialData.cue_number, // Map cue_number to display_id
+      });
     }
-  );
+  }, [initialData]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,25 +64,24 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode }: CueMo
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/50" />
         <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg w-full max-w-md max-h-[90vh] overflow-y-auto">
-          <Dialog.Title className="text-xl font-bold mb-4">
+          <Dialog.Title className="mb-4 text-xl font-bold">
             {mode === 'add' ? 'Add New Cue' : 'Edit Cue'}
           </Dialog.Title>
           <form onSubmit={handleSubmit} className="space-y-4">
-            {mode === 'edit' && (
-              <div>
-                <label htmlFor="display_id" className="block text-sm font-medium mb-1">
-                  Cue ID
-                </label>
-                <input
-                  type="text"
-                  id="display_id"
-                  name="display_id"
-                  value={formData.display_id || ''}
-                  onChange={handleChange}
-                  className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
-                />
-              </div>
-            )}
+            <div>
+              <label htmlFor="display_id" className="block mb-1 text-sm font-medium">
+                Cue ID
+              </label>
+              <input
+                type="text"
+                id="display_id"
+                name="display_id"
+                value={formData.display_id || ''}
+                onChange={handleChange}
+                className="p-2 w-full rounded border dark:bg-gray-700 dark:border-gray-600"
+                placeholder="e.g., A101"
+              />
+            </div>
             <div className="space-y-2">
               <label htmlFor="start_time" className="block text-sm font-medium">
                 Start Time
@@ -76,7 +92,7 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode }: CueMo
                 name="start_time"
                 value={formData.start_time}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border rounded-md dark:bg-gray-700"
+                className="px-3 py-2 w-full rounded-md border dark:bg-gray-700"
               />
             </div>
 
@@ -90,7 +106,7 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode }: CueMo
                 name="run_time"
                 value={formData.run_time}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border rounded-md dark:bg-gray-700"
+                className="px-3 py-2 w-full rounded-md border dark:bg-gray-700"
               />
             </div>
 
@@ -104,7 +120,7 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode }: CueMo
                 name="end_time"
                 value={formData.end_time}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border rounded-md dark:bg-gray-700"
+                className="px-3 py-2 w-full rounded-md border dark:bg-gray-700"
               />
             </div>
 
@@ -118,7 +134,7 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode }: CueMo
                 name="activity"
                 value={formData.activity}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border rounded-md dark:bg-gray-700"
+                className="px-3 py-2 w-full rounded-md border dark:bg-gray-700"
               />
             </div>
 
@@ -132,7 +148,7 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode }: CueMo
                 name="graphics"
                 value={formData.graphics}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border rounded-md dark:bg-gray-700"
+                className="px-3 py-2 w-full rounded-md border dark:bg-gray-700"
               />
             </div>
 
@@ -146,7 +162,7 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode }: CueMo
                 name="video"
                 value={formData.video}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border rounded-md dark:bg-gray-700"
+                className="px-3 py-2 w-full rounded-md border dark:bg-gray-700"
               />
             </div>
 
@@ -160,7 +176,7 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode }: CueMo
                 name="audio"
                 value={formData.audio}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border rounded-md dark:bg-gray-700"
+                className="px-3 py-2 w-full rounded-md border dark:bg-gray-700"
               />
             </div>
 
@@ -174,7 +190,7 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode }: CueMo
                 name="lighting"
                 value={formData.lighting}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border rounded-md dark:bg-gray-700"
+                className="px-3 py-2 w-full rounded-md border dark:bg-gray-700"
               />
             </div>
 
@@ -188,11 +204,11 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode }: CueMo
                 value={formData.notes}
                 onChange={handleChange}
                 rows={3}
-                className="w-full px-3 py-2 border rounded-md dark:bg-gray-700"
+                className="px-3 py-2 w-full rounded-md border dark:bg-gray-700"
               />
             </div>
 
-            <div className="flex justify-end space-x-3 mt-6">
+            <div className="flex justify-end mt-6 space-x-3">
               <button
                 type="button"
                 onClick={onClose}

@@ -42,8 +42,7 @@ export async function getCueById(id: string): Promise<Cue> {
 export async function createCue(cue: NewCue): Promise<Cue> {
   try {
     // Validate the cue number format
-    const existingCues = await getAllCues(cue.show_id);
-    if (!validateCueNumber(cue.cue_number, existingCues.map(c => c.cue_number))) {
+    if (!validateCueNumber(cue.cue_number)) {
       throw new Error(`Invalid cue number format: ${cue.cue_number}`);
     }
 
@@ -102,7 +101,7 @@ export async function updateCue(id: string, cue: Partial<Cue>): Promise<Cue> {
     if (cue.cue_number) {
       const existingCues = await getAllCues(cue.show_id!);
       const otherCues = existingCues.filter(c => c.id !== id);
-      if (!validateCueNumber(cue.cue_number, otherCues.map(c => c.cue_number))) {
+      if (!validateCueNumber(cue.cue_number)) {
         throw new Error(`Invalid cue number format: ${cue.cue_number}`);
       }
     }

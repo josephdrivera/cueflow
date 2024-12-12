@@ -2,11 +2,11 @@
 
 import * as React from "react"
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { Clock, Edit2, Plus, Settings, X, ChevronDown, ChevronUp } from 'lucide-react'
+import { Clock, Edit2, Plus, Settings, X, ChevronDown, ChevronUp, Trash2 } from 'lucide-react'
 import { ThemeToggle } from "./ThemeToggle"
 import { CueModal } from './CueModal';
 import { Cue, NewCue } from "@/types/cue";
-import { insertCueBetween, getAllCues, updateCue, createCue } from "@/services/cueService";
+import { insertCueBetween, getAllCues, updateCue, createCue, deleteCue } from "@/services/cueService";
 import { Show, createShow, getAllShows } from "@/services/showService";
 import { cn } from "@/lib/utils";
 import { generateCueNumberBetween, validateCueNumber } from '@/utils/cueNumbering';
@@ -76,53 +76,28 @@ export default function CueSheetEditor() {
   }, []);
 
   const handleAddCue = async (insertIndex?: number) => {
-    if (!show) return;
-
-    try {
-      const sortedCues = [...cues].sort((a, b) => a.cue_number.localeCompare(b.cue_number));
-      let newCueNumber: string;
-
-      if (typeof insertIndex === 'number') {
-        const prevCue = insertIndex > 0 ? sortedCues[insertIndex - 1]?.cue_number : null;
-        const nextCue = sortedCues[insertIndex]?.cue_number || null;
-        newCueNumber = generateCueNumberBetween(prevCue, nextCue);
-      } else {
-        // Adding at the end
-        const lastCue = sortedCues[sortedCues.length - 1]?.cue_number || null;
-        newCueNumber = generateCueNumberBetween(lastCue, null);
-      }
-
-      // Validate the generated number
-      if (!validateCueNumber(newCueNumber, sortedCues.map(c => c.cue_number))) {
-        throw new Error(`Failed to generate valid cue number: ${newCueNumber}`);
-      }
-
-      const newCue = await createCue({
-        show_id: show.id,
-        cue_number: newCueNumber,
-        start_time: '00:00:00',  // Default to midnight
-        run_time: '00:00:00',   // Default to 0 duration
-        end_time: '00:00:00',   // Default to midnight
-        activity: '',
-        graphics: '',
-        video: '',
-        audio: '',
-        lighting: '',
-        notes: '',
-        previous_cue_id: null,
-        next_cue_id: null
-      });
-
-      setCues(prev => [...prev, newCue]);
-    } catch (error) {
-      console.error('Error adding cue:', error);
-      // TODO: Show error toast to user
-    }
+    setModalMode('add');
+    setSelectedCue({
+      display_id: '',  
+      start_time: '',
+      run_time: '',
+      end_time: '',
+      activity: '',
+      graphics: '',
+      video: '',
+      audio: '',
+      lighting: '',
+      notes: '',
+    });
+    setIsModalOpen(true);
   };
 
   const handleEditCue = (cue: Cue) => {
     setModalMode('edit');
-    setSelectedCue(cue);
+    setSelectedCue({
+      ...cue,
+      display_id: cue.cue_number,
+    });
     setInsertPosition(null);
     setIsModalOpen(true);
   };
@@ -135,6 +110,19 @@ export default function CueSheetEditor() {
     setInsertMenuOpen(null);
   };
 
+  const handleDeleteCue = async (id: string) => {
+    if (window.confirm('Are you sure you want to delete this cue?')) {
+      try {
+        await deleteCue(id);
+        // Remove the cue from local state
+        setCues(prevCues => prevCues.filter(cue => cue.id !== id));
+      } catch (error) {
+        console.error('Error deleting cue:', error);
+        // You might want to show an error message to the user here
+      }
+    }
+  };
+
   const handleSubmitCue = async (cue: Partial<Cue>) => {
     try {
       if (!show) {
@@ -142,10 +130,12 @@ export default function CueSheetEditor() {
       }
 
       if (modalMode === 'add') {
-        const cueData: Omit<NewCue, 'cue_number'> = {
+        const cueData: NewCue = {
           show_id: show.id,
-          previous_cue_id: insertPosition?.previousId || null,
-          next_cue_id: insertPosition?.nextId || null,
+          cue_number: cue.display_id || generateCueNumberBetween(
+            insertPosition?.previousId ? cues.find(c => c.id === insertPosition.previousId)?.cue_number : null,
+            insertPosition?.nextId ? cues.find(c => c.id === insertPosition.nextId)?.cue_number : null
+          ),
           start_time: cue.start_time || '',
           run_time: cue.run_time || '',
           end_time: cue.end_time || '',
@@ -155,6 +145,8 @@ export default function CueSheetEditor() {
           audio: cue.audio || '',
           lighting: cue.lighting || '',
           notes: cue.notes || '',
+          previous_cue_id: insertPosition?.previousId || null,
+          next_cue_id: insertPosition?.nextId || null,
         };
         
         if (insertPosition) {
@@ -175,17 +167,13 @@ export default function CueSheetEditor() {
           });
         } else {
           // Add at the end
-          const newCue = await insertCueBetween(
-            cueData.show_id,
-            cues[cues.length - 1]?.id || null,
-            null,
-            cueData
-          );
+          const newCue = await createCue(cueData);
           setCues(prevCues => [...prevCues, newCue]);
         }
       } else if (cue.id) {
         // Edit existing cue
         const updatedCue = await updateCue(cue.id, {
+          cue_number: cue.display_id, // Map display_id to cue_number
           start_time: cue.start_time || '',
           run_time: cue.run_time || '',
           end_time: cue.end_time || '',
@@ -195,18 +183,17 @@ export default function CueSheetEditor() {
           audio: cue.audio || '',
           lighting: cue.lighting || '',
           notes: cue.notes || '',
+          show_id: show.id,
         });
         setCues(prevCues => prevCues.map((c) => (c.id === updatedCue.id ? updatedCue : c)));
       }
+
+      setIsModalOpen(false);
     } catch (error: any) {
       console.error('Error saving cue:', error);
       if (error.message) {
         console.error('Error details:', error.message);
       }
-      if (error.details) {
-        console.error('Additional details:', error.details);
-      }
-      throw error;
     }
   };
 
@@ -317,7 +304,7 @@ export default function CueSheetEditor() {
                             </DropdownMenu.Portal>
                           </DropdownMenu.Root>
                         </td>
-                        <td className="p-2">{cue.display_id}</td>
+                        <td className="p-2">{cue.cue_number}</td>
                         <td className="p-2">{cue.start_time}</td>
                         <td className="p-2">{cue.run_time}</td>
                         <td className="p-2">{cue.end_time}</td>
@@ -328,12 +315,20 @@ export default function CueSheetEditor() {
                         <td className="p-2">{cue.lighting}</td>
                         <td className="p-2">{cue.notes}</td>
                         <td className="p-2">
-                          <button
-                            onClick={() => handleEditCue(cue)}
-                            className="p-1 rounded opacity-0 transition-opacity group-hover:opacity-100 hover:bg-gray-100 dark:hover:bg-gray-700"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
+                          <div className="flex gap-1">
+                            <button
+                              onClick={() => handleEditCue(cue)}
+                              className="p-1 rounded opacity-0 transition-opacity group-hover:opacity-100 hover:bg-gray-100 dark:hover:bg-gray-700"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteCue(cue.id)}
+                              className="p-1 rounded opacity-0 transition-opacity group-hover:opacity-100 hover:bg-gray-100 dark:hover:bg-gray-700 text-red-500"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     </React.Fragment>

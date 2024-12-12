@@ -18,4 +18,4 @@ export interface Cue {
   next_cue_id?: string | null;
 }
 
-export type NewCue = Omit<Cue, 'id' | 'display_id' | 'created_at' | 'updated_at'>;
+export type NewCue = Omit<Cue, 'id' | 'created_at' | 'updated_at'>;

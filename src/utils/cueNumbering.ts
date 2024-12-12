@@ -4,7 +4,7 @@ interface ParsedCueNumber {
 }
 
 export function parseCueNumber(cueNumber: string): ParsedCueNumber {
-  const match = cueNumber.match(/^([A-Z])(\d+)$/);
+  const match = cueNumber.match(/^([A-Z])(\d+)[a-z]?$/);
   if (!match) {
     throw new Error(`Invalid cue number format: ${cueNumber}`);
   }
@@ -18,74 +18,59 @@ export function formatCueNumber(prefix: string, number: number): string {
   return `${prefix}${number.toString().padStart(3, '0')}`;
 }
 
-export function generateCueNumberBetween(
-  prevCueNumber: string | null, 
-  nextCueNumber: string | null
-): string {
-  // Case 1: No previous cue - start with A101
-  if (!prevCueNumber) {
-    return 'A101';
+export function generateCueNumberBetween(prevNumber: string | null, nextNumber: string | null): string {
+  if (!prevNumber) {
+    return nextNumber ? insertBefore(nextNumber) : 'A101';
+  }
+  if (!nextNumber) {
+    return insertAfter(prevNumber);
+  }
+  
+  // If custom format is detected (like A101b), append 'a' to the previous number
+  if (prevNumber.match(/[A-Z]\d+[a-z]?/) && !nextNumber.match(/[A-Z]\d+[a-z]?/)) {
+    return prevNumber + 'a';
   }
 
-  // Case 2: No next cue - increment the last cue number
-  if (!nextCueNumber) {
-    const parsed = parseCueNumber(prevCueNumber);
-    return formatCueNumber(parsed.prefix, parsed.number + 1);
+  // Handle numeric part
+  const prevBase = prevNumber.match(/[A-Z]\d+/)?.[0] || prevNumber;
+  const nextBase = nextNumber.match(/[A-Z]\d+/)?.[0] || nextNumber;
+  
+  if (prevBase === nextBase) {
+    // If they have the same base, append 'a' to the previous number
+    return prevNumber + 'a';
   }
 
-  // Case 3: Inserting between two cues
-  const prev = parseCueNumber(prevCueNumber);
-  const next = parseCueNumber(nextCueNumber);
-
-  // If prefixes are different, use the previous prefix and increment
-  if (prev.prefix !== next.prefix) {
-    return formatCueNumber(prev.prefix, prev.number + 1);
+  // Default to numeric interpolation
+  const prevNum = parseInt(prevNumber.match(/\d+/)?.[0] || '0');
+  const nextNum = parseInt(nextNumber.match(/\d+/)?.[0] || '999');
+  
+  if (nextNum - prevNum > 1) {
+    const middleNum = Math.floor((prevNum + nextNum) / 2);
+    return `A${middleNum.toString().padStart(3, '0')}`;
   }
-
-  // If numbers are consecutive, need to handle special cases
-  if (next.number - prev.number === 1) {
-    // If we're at 999, move to next letter
-    if (prev.number === 999) {
-      const nextPrefix = String.fromCharCode(prev.prefix.charCodeAt(0) + 1);
-      return formatCueNumber(nextPrefix, 101);
-    }
-    
-    // If we're at x99, need to handle the transition to x100
-    if (prev.number % 100 === 99) {
-      // Create a number between x99 and x100 by adding decimal places
-      // and rounding to the nearest integer
-      const newNumber = Math.floor((prev.number + next.number) / 2);
-      return formatCueNumber(prev.prefix, newNumber);
-    }
-  }
-
-  // Normal case: average the numbers and round down
-  const newNumber = Math.floor((prev.number + next.number) / 2);
-  return formatCueNumber(prev.prefix, newNumber);
+  
+  // If numbers are consecutive, append 'a' to the previous number
+  return prevNumber + 'a';
 }
 
-export function validateCueNumber(
-  cueNumber: string, 
-  existingCueNumbers: string[]
-): boolean {
-  try {
-    // Check format
-    const parsed = parseCueNumber(cueNumber);
-    
-    // Check if number is in valid range (101-999)
-    if (parsed.number < 101 || parsed.number > 999) {
-      return false;
-    }
+function insertBefore(num: string): string {
+  const match = num.match(/[A-Z](\d+)/);
+  if (!match) return 'A101';
+  const number = parseInt(match[1]);
+  return `A${(number - 1).toString().padStart(3, '0')}`;
+}
 
-    // Check for duplicates
-    if (existingCueNumbers.includes(cueNumber)) {
-      return false;
-    }
+function insertAfter(num: string): string {
+  const match = num.match(/[A-Z](\d+)/);
+  if (!match) return 'A101';
+  const number = parseInt(match[1]);
+  return `A${(number + 1).toString().padStart(3, '0')}`;
+}
 
-    return true;
-  } catch {
-    return false;
-  }
+export function validateCueNumber(cueNumber: string): boolean {
+  // Allow format like A101 or A101b (letter, numbers, optional lowercase letter)
+  const validFormat = /^[A-Z]\d+[a-z]?$/;
+  return validFormat.test(cueNumber);
 }
 
 export function getNextAvailableCueNumber(existingCueNumbers: string[]): string {
