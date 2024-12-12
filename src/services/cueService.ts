@@ -98,33 +98,43 @@ export async function createCue(cue: NewCue): Promise<Cue> {
 export async function updateCue(id: string, cue: Partial<Cue>): Promise<Cue> {
   try {
     // If updating cue number, validate it first
-    if (cue.cue_number) {
-      const existingCues = await getAllCues(cue.show_id!);
-      const otherCues = existingCues.filter(c => c.id !== id);
-      if (!validateCueNumber(cue.cue_number)) {
-        throw new Error(`Invalid cue number format: ${cue.cue_number}`);
-      }
+    if (cue.cue_number && !validateCueNumber(cue.cue_number)) {
+      throw new Error(`Invalid cue number format: ${cue.cue_number}`);
     }
 
     const { data, error } = await supabase
       .from(TABLE_NAME)
-      .update(cue)
+      .update({
+        cue_number: cue.cue_number,
+        start_time: cue.start_time,
+        run_time: cue.run_time,
+        end_time: cue.end_time,
+        activity: cue.activity,
+        graphics: cue.graphics,
+        video: cue.video,
+        audio: cue.audio,
+        lighting: cue.lighting,
+        notes: cue.notes,
+        show_id: cue.show_id,
+        previous_cue_id: cue.previous_cue_id,
+        next_cue_id: cue.next_cue_id,
+      })
       .eq('id', id)
       .select()
       .single();
 
     if (error) {
-      console.error('Error updating cue:', error);
-      throw error;
+      console.error('Supabase error updating cue:', error);
+      throw new Error(`Database error: ${error.message}${error.details ? ` - ${error.details}` : ''}`);
     }
 
     if (!data) {
-      throw new Error(`Cue not found with id: ${id}`);
+      throw new Error('No data returned from cue update');
     }
 
     return data;
   } catch (error: any) {
-    console.error('Error in updateCue:', error);
+    console.error('Error updating cue:', error);
     if (error.message) {
       console.error('Error message:', error.message);
     }
@@ -196,6 +206,37 @@ export async function insertCueBetween(
   ]);
 
   return newCue;
+}
+
+export async function checkDuplicateCueNumber(showId: string, cueNumber: string, excludeId?: string): Promise<boolean> {
+  try {
+    if (!showId || !cueNumber) {
+      console.error('Missing required parameters:', { showId, cueNumber });
+      return false;
+    }
+
+    let query = supabase
+      .from(TABLE_NAME)
+      .select('id')
+      .eq('show_id', showId)
+      .eq('cue_number', cueNumber);
+    
+    if (excludeId) {
+      query = query.neq('id', excludeId);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Supabase error checking duplicate cue number:', error);
+      throw error;
+    }
+
+    return data && data.length > 0;
+  } catch (error) {
+    console.error('Error checking duplicate cue number:', error);
+    throw error;
+  }
 }
 
 // Helper functions for cue number generation

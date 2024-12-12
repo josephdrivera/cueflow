@@ -125,72 +125,43 @@ export default function CueSheetEditor() {
     }
   };
 
-  const handleSubmitCue = async (cue: Partial<Cue>) => {
+  const handleSubmitCue = async (cueData: Cue | Omit<NewCue, 'cue_number'>) => {
     try {
       if (!show) {
-        throw new Error('No show loaded');
+        console.error('No show selected');
+        return;
       }
 
-      if (modalMode === 'add') {
-        const cueData: NewCue = {
-          show_id: show.id,
-          cue_number: cue.display_id || generateCueNumberBetween(
-            insertPosition?.previousId ? cues.find(c => c.id === insertPosition.previousId)?.cue_number : null,
-            insertPosition?.nextId ? cues.find(c => c.id === insertPosition.nextId)?.cue_number : null
-          ),
-          start_time: cue.start_time || '',
-          run_time: cue.run_time || '',
-          end_time: cue.end_time || '',
-          activity: cue.activity || '',
-          graphics: cue.graphics || '',
-          video: cue.video || '',
-          audio: cue.audio || '',
-          lighting: cue.lighting || '',
-          notes: cue.notes || '',
-          previous_cue_id: insertPosition?.previousId || null,
-          next_cue_id: insertPosition?.nextId || null,
-        };
-        
-        if (insertPosition) {
-          // Insert between cues
-          const newCue = await insertCueBetween(
-            cueData.show_id,
-            insertPosition.previousId,
-            insertPosition.nextId,
-            cueData
-          );
-          setCues(prevCues => {
-            const newCues = [...prevCues];
-            const insertIndex = insertPosition.previousId
-              ? newCues.findIndex(c => c.id === insertPosition.previousId) + 1
-              : 0;
-            newCues.splice(insertIndex, 0, newCue);
-            return newCues;
-          });
-        } else {
-          // Add at the end
-          const newCue = await createCue(cueData);
-          setCues(prevCues => [...prevCues, newCue]);
-        }
-      } else if (cue.id) {
-        // Edit existing cue
-        const updatedCue = await updateCue(cue.id, {
-          cue_number: cue.display_id, // Map display_id to cue_number
-          start_time: cue.start_time || '',
-          run_time: cue.run_time || '',
-          end_time: cue.end_time || '',
-          activity: cue.activity || '',
-          graphics: cue.graphics || '',
-          video: cue.video || '',
-          audio: cue.audio || '',
-          lighting: cue.lighting || '',
-          notes: cue.notes || '',
-          show_id: show.id,
+      // If the cue has an ID, it's an update
+      if ('id' in cueData) {
+        const updatedCue = await updateCue(cueData.id, {
+          ...cueData,
+          cue_number: cueData.display_id || cueData.cue_number,
         });
-        setCues(prevCues => prevCues.map((c) => (c.id === updatedCue.id ? updatedCue : c)));
+        
+        // Update the cues list
+        setCues(prevCues => 
+          prevCues.map(cue => 
+            cue.id === updatedCue.id ? updatedCue : cue
+          )
+        );
+      } else {
+        // It's a new cue
+        const newCue = await createCue({
+          ...cueData,
+          show_id: show.id,
+          cue_number: cueData.display_id,
+        } as NewCue);
+
+        setCues(prevCues => [...prevCues, newCue].sort((a, b) => 
+          a.cue_number.localeCompare(b.cue_number)
+        ));
       }
 
       setIsModalOpen(false);
+      setSelectedCue(undefined);
+      setInsertPosition(null);
+      setCurrentIndex(undefined);
     } catch (error: any) {
       console.error('Error saving cue:', error);
       if (error.message) {
@@ -341,19 +312,18 @@ export default function CueSheetEditor() {
           </div>
         </div>
       </main>
-      <CueModal
-        isOpen={isModalOpen}
-        onClose={() => {
-          setIsModalOpen(false);
-          setInsertPosition(null);
-          setCurrentIndex(undefined);
-        }}
-        onSubmit={handleSubmitCue}
-        initialData={selectedCue}
-        mode={modalMode}
-        cues={cues}
-        currentIndex={currentIndex}
-      />
+      {isModalOpen && (
+        <CueModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          onSubmit={handleSubmitCue}
+          initialData={selectedCue}
+          mode={modalMode}
+          cues={cues}
+          currentIndex={currentIndex}
+          showId={show?.id || ''}
+        />
+      )}
     </div>
   );
 }
