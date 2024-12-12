@@ -22,9 +22,16 @@ export interface NewShow {
 
 export async function createShow(show: NewShow): Promise<Show> {
   try {
+    const newShow = {
+      title: show.title,
+      description: show.description,
+      is_template: show.is_template || false,
+      metadata: show.metadata || {}
+    };
+
     const { data, error } = await supabase
       .from(TABLE_NAME)
-      .insert([show])
+      .insert([newShow])
       .select()
       .single();
 
@@ -38,8 +45,17 @@ export async function createShow(show: NewShow): Promise<Show> {
     }
     
     return data;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error in createShow:', error);
+    if (error.message) {
+      console.error('Error message:', error.message);
+    }
+    if (error.details) {
+      console.error('Error details:', error.details);
+    }
+    if (error.hint) {
+      console.error('Error hint:', error.hint);
+    }
     throw error;
   }
 }

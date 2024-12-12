@@ -6,9 +6,10 @@ import { Clock, Edit2, Plus, Settings, X, ChevronDown, ChevronUp } from 'lucide-
 import { ThemeToggle } from "./ThemeToggle"
 import { CueModal } from './CueModal';
 import { Cue, NewCue } from "@/types/cue";
-import { insertCueBetween, getAllCues, updateCue } from "@/services/cueService";
+import { insertCueBetween, getAllCues, updateCue, createCue } from "@/services/cueService";
 import { Show, createShow, getAllShows } from "@/services/showService";
 import { cn } from "@/lib/utils";
+import { generateCueNumberBetween, validateCueNumber } from '@/utils/cueNumbering';
 
 export default function CueSheetEditor() {
   const [cues, setCues] = React.useState<Cue[]>([]);
@@ -74,11 +75,49 @@ export default function CueSheetEditor() {
     loadShowAndCues();
   }, []);
 
-  const handleAddCue = () => {
-    setModalMode('add');
-    setSelectedCue(undefined);
-    setInsertPosition(null);
-    setIsModalOpen(true);
+  const handleAddCue = async (insertIndex?: number) => {
+    if (!show) return;
+
+    try {
+      const sortedCues = [...cues].sort((a, b) => a.cue_number.localeCompare(b.cue_number));
+      let newCueNumber: string;
+
+      if (typeof insertIndex === 'number') {
+        const prevCue = insertIndex > 0 ? sortedCues[insertIndex - 1]?.cue_number : null;
+        const nextCue = sortedCues[insertIndex]?.cue_number || null;
+        newCueNumber = generateCueNumberBetween(prevCue, nextCue);
+      } else {
+        // Adding at the end
+        const lastCue = sortedCues[sortedCues.length - 1]?.cue_number || null;
+        newCueNumber = generateCueNumberBetween(lastCue, null);
+      }
+
+      // Validate the generated number
+      if (!validateCueNumber(newCueNumber, sortedCues.map(c => c.cue_number))) {
+        throw new Error(`Failed to generate valid cue number: ${newCueNumber}`);
+      }
+
+      const newCue = await createCue({
+        show_id: show.id,
+        cue_number: newCueNumber,
+        start_time: '00:00:00',  // Default to midnight
+        run_time: '00:00:00',   // Default to 0 duration
+        end_time: '00:00:00',   // Default to midnight
+        activity: '',
+        graphics: '',
+        video: '',
+        audio: '',
+        lighting: '',
+        notes: '',
+        previous_cue_id: null,
+        next_cue_id: null
+      });
+
+      setCues(prev => [...prev, newCue]);
+    } catch (error) {
+      console.error('Error adding cue:', error);
+      // TODO: Show error toast to user
+    }
   };
 
   const handleEditCue = (cue: Cue) => {
@@ -192,7 +231,7 @@ export default function CueSheetEditor() {
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-semibold">Cue List</h2>
             <button 
-              onClick={handleAddCue}
+              onClick={() => handleAddCue()}
               className="inline-flex items-center px-3 py-1.5 border rounded-md text-sm hover:bg-gray-50 dark:hover:bg-gray-800"
             >
               <Plus className="mr-2 w-4 h-4" />
@@ -238,7 +277,7 @@ export default function CueSheetEditor() {
                   <tr>
                     <td colSpan={12} className="p-1">
                       <button
-                        onClick={() => handleInsertCue(null, cues[0]?.id || null)}
+                        onClick={() => handleAddCue(0)}
                         className="w-full py-0.5 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded transition-colors"
                       >
                         <Plus className="mx-auto w-3 h-3" />
@@ -278,7 +317,7 @@ export default function CueSheetEditor() {
                             </DropdownMenu.Portal>
                           </DropdownMenu.Root>
                         </td>
-                        <td className="p-2">{cue.id}</td>
+                        <td className="p-2">{cue.display_id}</td>
                         <td className="p-2">{cue.start_time}</td>
                         <td className="p-2">{cue.run_time}</td>
                         <td className="p-2">{cue.end_time}</td>

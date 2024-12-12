@@ -24,6 +24,7 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode }: CueMo
       audio: '',
       lighting: '',
       notes: '',
+      display_id: '',
     }
   );
 
@@ -49,8 +50,22 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode }: CueMo
           <Dialog.Title className="text-xl font-bold mb-4">
             {mode === 'add' ? 'Add New Cue' : 'Edit Cue'}
           </Dialog.Title>
-          
           <form onSubmit={handleSubmit} className="space-y-4">
+            {mode === 'edit' && (
+              <div>
+                <label htmlFor="display_id" className="block text-sm font-medium mb-1">
+                  Cue ID
+                </label>
+                <input
+                  type="text"
+                  id="display_id"
+                  name="display_id"
+                  value={formData.display_id || ''}
+                  onChange={handleChange}
+                  className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+                />
+              </div>
+            )}
             <div className="space-y-2">
               <label htmlFor="start_time" className="block text-sm font-medium">
                 Start Time

@@ -1,12 +1,20 @@
 -- Enable the necessary extensions
 create extension if not exists "uuid-ossp";
 
--- Create custom types
-create type user_role as enum ('admin', 'user');
-create type file_type as enum ('cue id', 'audio', 'video', 'image', 'document', 'other');
+-- Create custom types if they don't exist
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
+        CREATE TYPE user_role AS ENUM ('admin', 'user');
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'file_type') THEN
+        CREATE TYPE file_type AS ENUM ('cue id', 'audio', 'video', 'image', 'document', 'other');
+    END IF;
+END $$;
 
 -- Create users table (extends Supabase auth.users)
-create table public.profiles (
+create table if not exists public.profiles (
   id uuid references auth.users on delete cascade primary key,
   updated_at timestamp with time zone default timezone('utc'::text, now()) not null,
   username text unique,
@@ -17,7 +25,7 @@ create table public.profiles (
 );
 
 -- Create shows table
-create table public.shows (
+create table if not exists public.shows (
   id uuid default uuid_generate_v4() primary key,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,
   updated_at timestamp with time zone default timezone('utc'::text, now()) not null,
@@ -29,7 +37,7 @@ create table public.shows (
 );
 
 -- Create show_flows table
-create table public.show_flows (
+create table if not exists public.show_flows (
   id uuid default uuid_generate_v4() primary key,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,
   updated_at timestamp with time zone default timezone('utc'::text, now()) not null,
@@ -42,7 +50,7 @@ create table public.show_flows (
 );
 
 -- Create files table
-create table public.files (
+create table if not exists public.files (
   id uuid default uuid_generate_v4() primary key,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,
   updated_at timestamp with time zone default timezone('utc'::text, now()) not null,
@@ -56,7 +64,7 @@ create table public.files (
 );
 
 -- Create show_collaborators table for managing show access
-create table public.show_collaborators (
+create table if not exists public.show_collaborators (
   id uuid default uuid_generate_v4() primary key,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,
   show_id uuid references public.shows(id) on delete cascade not null,
@@ -65,12 +73,86 @@ create table public.show_collaborators (
   unique(show_id, user_id)
 );
 
+-- Create cues table
+create table if not exists public.cues (
+  id uuid default uuid_generate_v4() primary key,  -- System ID (hidden)
+  display_id text not null,                       -- Display ID (e.g., CUE-A101)
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  updated_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  show_id uuid references public.shows(id) on delete cascade not null,
+  cue_number text not null,
+  description text,
+  start_time interval not null default '00:00:00'::interval,
+  run_time interval not null default '00:00:00'::interval,
+  end_time interval not null default '00:00:00'::interval,
+  metadata jsonb default '{}'::jsonb,
+  unique(show_id, cue_number),
+  unique(show_id, display_id)  -- Ensure display_id is unique within a show
+);
+
+-- Create function to generate display_id
+create or replace function public.generate_cue_display_id()
+returns trigger as $$
+declare
+  prefix text := 'CUE-';
+  next_num integer;
+begin
+  -- Get the highest numeric part from existing display_ids for this show
+  select coalesce(max(cast(substring(display_id from '^CUE-(\d+)$') as integer)), 0)
+  into next_num
+  from public.cues
+  where show_id = NEW.show_id
+    and display_id ~ '^CUE-\d+$';
+
+  -- Generate the next display_id
+  NEW.display_id := prefix || lpad((next_num + 1)::text, 3, '0');
+  
+  return NEW;
+end;
+$$ language plpgsql;
+
+-- Create trigger for display_id generation
+create trigger generate_cue_display_id
+  before insert on public.cues
+  for each row
+  when (NEW.display_id IS NULL)
+  execute function public.generate_cue_display_id();
+
 -- Create RLS policies
-alter table public.profiles enable row level security;
-alter table public.shows enable row level security;
-alter table public.show_flows enable row level security;
-alter table public.files enable row level security;
-alter table public.show_collaborators enable row level security;
+alter table if exists public.profiles enable row level security;
+alter table if exists public.shows enable row level security;
+alter table if exists public.show_flows enable row level security;
+alter table if exists public.files enable row level security;
+alter table if exists public.show_collaborators enable row level security;
+alter table if exists public.cues enable row level security;
+
+-- Drop existing policies first
+DO $$ 
+BEGIN
+    -- Drop profiles policies
+    DROP POLICY IF EXISTS "Public profiles are viewable by everyone" ON public.profiles;
+    DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
+    
+    -- Drop shows policies
+    DROP POLICY IF EXISTS "Shows are viewable by everyone" ON public.shows;
+    DROP POLICY IF EXISTS "Shows can be created by anyone" ON public.shows;
+    DROP POLICY IF EXISTS "Shows can be updated by anyone" ON public.shows;
+    DROP POLICY IF EXISTS "Shows can be deleted by anyone" ON public.shows;
+    
+    -- Drop show flows policies
+    DROP POLICY IF EXISTS "Show flows are viewable by show collaborators" ON public.show_flows;
+    DROP POLICY IF EXISTS "Show flows can be updated by show editors" ON public.show_flows;
+    
+    -- Drop files policies
+    DROP POLICY IF EXISTS "Files are viewable by show collaborators" ON public.files;
+    DROP POLICY IF EXISTS "Files can be uploaded by show editors" ON public.files;
+    
+    -- Drop cues policies
+    DROP POLICY IF EXISTS "Cues are viewable by everyone" ON public.cues;
+    DROP POLICY IF EXISTS "Cues can be created by anyone" ON public.cues;
+    DROP POLICY IF EXISTS "Cues can be updated by anyone" ON public.cues;
+    DROP POLICY IF EXISTS "Cues can be deleted by anyone" ON public.cues;
+END $$;
 
 -- Profiles policies
 create policy "Public profiles are viewable by everyone"
@@ -82,29 +164,21 @@ create policy "Users can update own profile"
   using (auth.uid() = id);
 
 -- Shows policies
-create policy "Shows are viewable by creator and collaborators"
+create policy "Shows are viewable by everyone"
   on public.shows for select
-  using (
-    auth.uid() = creator_id or
-    exists (
-      select 1 from public.show_collaborators
-      where show_id = id and user_id = auth.uid()
-    )
-  );
+  using (true);
 
-create policy "Shows can be created by authenticated users"
+create policy "Shows can be created by anyone"
   on public.shows for insert
-  with check (auth.uid() = creator_id);
+  with check (true);
 
-create policy "Shows can be updated by creator and editors"
+create policy "Shows can be updated by anyone"
   on public.shows for update
-  using (
-    auth.uid() = creator_id or
-    exists (
-      select 1 from public.show_collaborators
-      where show_id = id and user_id = auth.uid() and can_edit = true
-    )
-  );
+  using (true);
+
+create policy "Shows can be deleted by anyone"
+  on public.shows for delete
+  using (true);
 
 -- Show flows policies
 create policy "Show flows are viewable by show collaborators"
@@ -148,6 +222,34 @@ create policy "Files can be uploaded by show editors"
     )
   );
 
+-- Cues policies
+create policy "Cues are viewable by everyone"
+  on public.cues for select
+  using (true);
+
+create policy "Cues can be created by anyone"
+  on public.cues for insert
+  with check (true);
+
+create policy "Cues can be updated by anyone"
+  on public.cues for update
+  using (true);
+
+create policy "Cues can be deleted by anyone"
+  on public.cues for delete
+  using (true);
+
+-- Drop existing triggers first
+DO $$ 
+BEGIN
+    DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+    DROP TRIGGER IF EXISTS handle_updated_at ON public.profiles;
+    DROP TRIGGER IF EXISTS handle_updated_at ON public.shows;
+    DROP TRIGGER IF EXISTS handle_updated_at ON public.show_flows;
+    DROP TRIGGER IF EXISTS handle_updated_at ON public.files;
+    DROP TRIGGER IF EXISTS handle_updated_at ON public.cues;
+END $$;
+
 -- Functions and triggers
 create or replace function public.handle_new_user()
 returns trigger as $$
@@ -185,4 +287,8 @@ create trigger handle_updated_at
 
 create trigger handle_updated_at
   before update on public.files
+  for each row execute procedure public.handle_updated_at();
+
+create trigger handle_updated_at
+  before update on public.cues
   for each row execute procedure public.handle_updated_at();
