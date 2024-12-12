@@ -3,6 +3,7 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { Cue, NewCue } from '../types/cue';
 import { useState, useEffect } from 'react';
+import { generateNextCueNumber } from '../utils/cueNumbering';
 
 interface CueModalProps {
   isOpen: boolean;
@@ -10,9 +11,11 @@ interface CueModalProps {
   onSubmit: (cue: Cue | Omit<NewCue, 'cue_number'>) => void;
   initialData?: Cue;
   mode: 'add' | 'edit';
+  cues: Cue[];
+  currentIndex?: number;
 }
 
-export function CueModal({ isOpen, onClose, onSubmit, initialData, mode }: CueModalProps) {
+export function CueModal({ isOpen, onClose, onSubmit, initialData, mode, cues, currentIndex }: CueModalProps) {
   const [formData, setFormData] = useState<Partial<Cue>>(() => {
     if (initialData) {
       return {
@@ -20,9 +23,9 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode }: CueMo
         display_id: initialData.cue_number, // Map cue_number to display_id
       };
     }
-    // For new cues, start with empty fields
+    // For new cues, generate the next cue number
     return {
-      display_id: '',
+      display_id: generateNextCueNumber(cues, currentIndex),
       start_time: '',
       run_time: '',
       end_time: '',
@@ -35,15 +38,20 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode }: CueMo
     };
   });
 
-  // Update formData when initialData changes
+  // Update formData when initialData or mode changes
   useEffect(() => {
     if (initialData) {
       setFormData({
         ...initialData,
         display_id: initialData.cue_number, // Map cue_number to display_id
       });
+    } else if (mode === 'add') {
+      setFormData(prev => ({
+        ...prev,
+        display_id: generateNextCueNumber(cues, currentIndex),
+      }));
     }
-  }, [initialData]);
+  }, [initialData, mode, cues, currentIndex]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

@@ -23,6 +23,7 @@ export default function CueSheetEditor() {
   } | null>(null);
   const [insertMenuOpen, setInsertMenuOpen] = React.useState<string | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
+  const [currentIndex, setCurrentIndex] = React.useState<number | undefined>();
 
   // Load or create show and its cues when component mounts
   React.useEffect(() => {
@@ -75,7 +76,8 @@ export default function CueSheetEditor() {
     loadShowAndCues();
   }, []);
 
-  const handleAddCue = async (insertIndex?: number) => {
+  const handleAddCue = async (index?: number) => {
+    setCurrentIndex(index);
     setModalMode('add');
     setSelectedCue({
       display_id: '',  
@@ -344,10 +346,13 @@ export default function CueSheetEditor() {
         onClose={() => {
           setIsModalOpen(false);
           setInsertPosition(null);
+          setCurrentIndex(undefined);
         }}
         onSubmit={handleSubmitCue}
         initialData={selectedCue}
         mode={modalMode}
+        cues={cues}
+        currentIndex={currentIndex}
       />
     </div>
   );

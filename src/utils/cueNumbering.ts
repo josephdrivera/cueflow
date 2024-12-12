@@ -67,10 +67,76 @@ function insertAfter(num: string): string {
   return `A${(number + 1).toString().padStart(3, '0')}`;
 }
 
+import { Cue } from '../types/cue';
+
 export function validateCueNumber(cueNumber: string): boolean {
-  // Allow format like A101 or A101b (letter, numbers, optional lowercase letter)
-  const validFormat = /^[A-Z]\d+[a-z]?$/;
-  return validFormat.test(cueNumber);
+  const pattern = /^[A-Z]\d+[a-z]?$/;
+  return pattern.test(cueNumber);
+}
+
+export function generateNextCueNumber(cues: Cue[], currentIndex?: number): string {
+  if (cues.length === 0) {
+    return 'A101';
+  }
+
+  if (currentIndex === undefined) {
+    // If no index provided, generate next number after the last cue
+    const lastCue = cues[cues.length - 1];
+    const match = lastCue.cue_number.match(/^([A-Z])(\d+)([a-z])?$/);
+    if (!match) return 'A101';
+
+    const [, letter, number] = match;
+    return `${letter}${String(parseInt(number) + 1).padStart(3, '0')}`;
+  }
+
+  // Generate a number between two existing cues
+  const prevCue = currentIndex > 0 ? cues[currentIndex - 1] : null;
+  const nextCue = currentIndex < cues.length ? cues[currentIndex] : null;
+
+  if (!prevCue) {
+    // Inserting at the beginning
+    const nextMatch = nextCue?.cue_number.match(/^([A-Z])(\d+)([a-z])?$/);
+    if (!nextMatch) return 'A101';
+    
+    const [, letter, number] = nextMatch;
+    const prevNumber = Math.max(1, parseInt(number) - 1);
+    return `${letter}${String(prevNumber).padStart(3, '0')}`;
+  }
+
+  if (!nextCue) {
+    // Inserting at the end
+    const prevMatch = prevCue.cue_number.match(/^([A-Z])(\d+)([a-z])?$/);
+    if (!prevMatch) return 'A101';
+
+    const [, letter, number] = prevMatch;
+    return `${letter}${String(parseInt(number) + 1).padStart(3, '0')}`;
+  }
+
+  // Inserting between two cues
+  const prevMatch = prevCue.cue_number.match(/^([A-Z])(\d+)([a-z])?$/);
+  const nextMatch = nextCue.cue_number.match(/^([A-Z])(\d+)([a-z])?$/);
+  
+  if (!prevMatch || !nextMatch) return 'A101';
+
+  const [, prevLetter, prevNumber] = prevMatch;
+  const [, nextLetter, nextNumber] = nextMatch;
+
+  if (prevLetter !== nextLetter) {
+    // If letters are different, use the previous letter and increment number
+    return `${prevLetter}${String(parseInt(prevNumber) + 1).padStart(3, '0')}`;
+  }
+
+  const prev = parseInt(prevNumber);
+  const next = parseInt(nextNumber);
+  
+  if (next - prev > 1) {
+    // If there's space between numbers, use the middle
+    const middle = Math.floor((prev + next) / 2);
+    return `${prevLetter}${String(middle).padStart(3, '0')}`;
+  }
+
+  // If numbers are consecutive, add a letter suffix to the previous number
+  return `${prevLetter}${prevNumber}a`;
 }
 
 export function getNextAvailableCueNumber(existingCueNumbers: string[]): string {
