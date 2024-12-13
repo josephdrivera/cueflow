@@ -10,6 +10,8 @@ import { insertCueBetween, getAllCues, updateCue, createCue, deleteCue } from "@
 import { Show, createShow, getAllShows } from "@/services/showService";
 import { cn } from "@/lib/utils";
 import { generateCueNumberBetween, validateCueNumber } from '@/utils/cueNumbering';
+import { useSettings } from '@/contexts/SettingsContext';
+import Link from 'next/link';
 
 export default function CueSheetEditor() {
   const [cues, setCues] = React.useState<Cue[]>([]);
@@ -24,6 +26,7 @@ export default function CueSheetEditor() {
   const [insertMenuOpen, setInsertMenuOpen] = React.useState<string | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
   const [currentIndex, setCurrentIndex] = React.useState<number | undefined>();
+  const { settings } = useSettings();
 
   // Load or create show and its cues when component mounts
   React.useEffect(() => {
@@ -180,10 +183,13 @@ export default function CueSheetEditor() {
             <Clock className="mr-2 w-4 h-4" />
             Live Mode
           </button>
-          <button className="inline-flex items-center px-4 py-2 rounded-md border">
+          <Link 
+            href="/settings"
+            className="inline-flex items-center px-4 py-2 rounded-md border"
+          >
             <Settings className="mr-2 w-4 h-4" />
             Settings
-          </button>
+          </Link>
         </div>
       </header>
       <main className="flex overflow-hidden flex-1">
@@ -218,17 +224,17 @@ export default function CueSheetEditor() {
               <table className="min-w-full">
                 <thead>
                   <tr className="border-b">
-                    <th className="w-[50px] text-left p-2"></th>
-                    <th className="w-[80px] text-left p-2">Cue ID</th>
-                    <th className="w-[100px] text-left p-2">Start Time</th>
-                    <th className="w-[100px] text-left p-2">Run Time</th>
-                    <th className="w-[100px] text-left p-2">End Time</th>
-                    <th className="p-2 text-left">Activity</th>
-                    <th className="w-[120px] text-left p-2">Graphics</th>
-                    <th className="w-[120px] text-left p-2">Video</th>
-                    <th className="w-[120px] text-left p-2">Audio</th>
-                    <th className="w-[120px] text-left p-2">Lighting</th>
-                    <th className="p-2 text-left">Notes</th>
+                    <th className={`w-[50px] text-left p-2 ${settings.showBorders ? 'border-r' : ''}`}></th>
+                    <th className={`w-[80px] text-left p-2 ${settings.showBorders ? 'border-r' : ''}`}>Cue ID</th>
+                    <th className={`w-[100px] text-left p-2 ${settings.showBorders ? 'border-r' : ''}`}>Start Time</th>
+                    <th className={`w-[100px] text-left p-2 ${settings.showBorders ? 'border-r' : ''}`}>Run Time</th>
+                    <th className={`w-[100px] text-left p-2 ${settings.showBorders ? 'border-r' : ''}`}>End Time</th>
+                    <th className={`p-2 text-left ${settings.showBorders ? 'border-r' : ''}`}>Activity</th>
+                    <th className={`w-[120px] text-left p-2 ${settings.showBorders ? 'border-r' : ''}`}>Graphics</th>
+                    <th className={`w-[120px] text-left p-2 ${settings.showBorders ? 'border-r' : ''}`}>Video</th>
+                    <th className={`w-[120px] text-left p-2 ${settings.showBorders ? 'border-r' : ''}`}>Audio</th>
+                    <th className={`w-[120px] text-left p-2 ${settings.showBorders ? 'border-r' : ''}`}>Lighting</th>
+                    <th className={`p-2 text-left ${settings.showBorders ? 'border-r' : ''}`}>Notes</th>
                     <th className="w-[50px] text-left p-2"></th>
                   </tr>
                 </thead>
@@ -247,7 +253,7 @@ export default function CueSheetEditor() {
                   {cues.map((cue, index) => (
                     <React.Fragment key={cue.id}>
                       <tr className="border-b group hover:bg-gray-50 dark:hover:bg-gray-800">
-                        <td className="p-2">
+                        <td className="p-2 border-r">
                           <DropdownMenu.Root open={insertMenuOpen === cue.id} onOpenChange={(open) => setInsertMenuOpen(open ? cue.id : null)}>
                             <DropdownMenu.Trigger asChild>
                               <button className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700">
@@ -277,16 +283,16 @@ export default function CueSheetEditor() {
                             </DropdownMenu.Portal>
                           </DropdownMenu.Root>
                         </td>
-                        <td className="p-2">{cue.cue_number}</td>
-                        <td className="p-2">{cue.start_time}</td>
-                        <td className="p-2">{cue.run_time}</td>
-                        <td className="p-2">{cue.end_time}</td>
-                        <td className="p-2">{cue.activity}</td>
-                        <td className="p-2">{cue.graphics}</td>
-                        <td className="p-2">{cue.video}</td>
-                        <td className="p-2">{cue.audio}</td>
-                        <td className="p-2">{cue.lighting}</td>
-                        <td className="p-2">{cue.notes}</td>
+                        <td className={`p-2 ${settings.showBorders ? 'border-r' : ''}`}>{cue.cue_number}</td>
+                        <td className={`p-2 ${settings.showBorders ? 'border-r' : ''}`}>{cue.start_time}</td>
+                        <td className={`p-2 ${settings.showBorders ? 'border-r' : ''}`}>{cue.run_time}</td>
+                        <td className={`p-2 ${settings.showBorders ? 'border-r' : ''}`}>{cue.end_time}</td>
+                        <td className={`p-2 ${settings.showBorders ? 'border-r' : ''}`}>{cue.activity}</td>
+                        <td className={`p-2 ${settings.showBorders ? 'border-r' : ''}`}>{cue.graphics}</td>
+                        <td className={`p-2 ${settings.showBorders ? 'border-r' : ''}`}>{cue.video}</td>
+                        <td className={`p-2 ${settings.showBorders ? 'border-r' : ''}`}>{cue.audio}</td>
+                        <td className={`p-2 ${settings.showBorders ? 'border-r' : ''}`}>{cue.lighting}</td>
+                        <td className={`p-2 ${settings.showBorders ? 'border-r' : ''}`}>{cue.notes}</td>
                         <td className="p-2">
                           <div className="flex gap-1">
                             <button
@@ -312,18 +318,21 @@ export default function CueSheetEditor() {
           </div>
         </div>
       </main>
-      {isModalOpen && (
-        <CueModal
-          isOpen={isModalOpen}
-          onClose={() => setIsModalOpen(false)}
-          onSubmit={handleSubmitCue}
-          initialData={selectedCue}
-          mode={modalMode}
-          cues={cues}
-          currentIndex={currentIndex}
-          showId={show?.id || ''}
-        />
-      )}
+      
+      <CueModal
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setSelectedCue(undefined);
+          setInsertPosition(null);
+        }}
+        onSubmit={handleSubmitCue}
+        initialData={selectedCue}
+        mode={modalMode}
+        cues={cues}
+        currentIndex={currentIndex}
+        showId={show?.id || ''}
+      />
     </div>
   );
 }
