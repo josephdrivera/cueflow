@@ -1,11 +1,13 @@
 "use client"
 
 import { useSettings } from "@/contexts/SettingsContext";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Monitor, Moon, Sun } from "lucide-react";
 import Link from "next/link";
+import { useTheme } from "next-themes";
 
 export default function SettingsPage() {
   const { settings, updateSettings } = useSettings();
+  const { theme, setTheme } = useTheme();
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-900">
@@ -21,6 +23,51 @@ export default function SettingsPage() {
         </div>
 
         <div className="space-y-8">
+          {/* Theme Settings */}
+          <section>
+            <h2 className="text-lg font-semibold mb-4">Theme</h2>
+            <div className="space-y-4 bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
+              <div className="grid grid-cols-3 gap-4">
+                <button
+                  onClick={() => setTheme('light')}
+                  className={`flex flex-col items-center justify-center p-4 rounded-lg border-2 transition-colors ${
+                    theme === 'light'
+                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                      : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                  }`}
+                >
+                  <Sun className="w-6 h-6 mb-2" />
+                  <span className="text-sm font-medium">Light</span>
+                </button>
+                <button
+                  onClick={() => setTheme('dark')}
+                  className={`flex flex-col items-center justify-center p-4 rounded-lg border-2 transition-colors ${
+                    theme === 'dark'
+                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                      : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                  }`}
+                >
+                  <Moon className="w-6 h-6 mb-2" />
+                  <span className="text-sm font-medium">Dark</span>
+                </button>
+                <button
+                  onClick={() => setTheme('system')}
+                  className={`flex flex-col items-center justify-center p-4 rounded-lg border-2 transition-colors ${
+                    theme === 'system'
+                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                      : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                  }`}
+                >
+                  <Monitor className="w-6 h-6 mb-2" />
+                  <span className="text-sm font-medium">System</span>
+                </button>
+              </div>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                Choose your preferred theme or sync with your system settings.
+              </p>
+            </div>
+          </section>
+
           {/* Display Settings */}
           <section>
             <h2 className="text-lg font-semibold mb-4">Display</h2>

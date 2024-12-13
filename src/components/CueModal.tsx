@@ -141,7 +141,7 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode, cues, c
                   name="display_id"
                   value={formData.display_id || ''}
                   onChange={handleChange}
-                  className="p-2 w-full rounded border dark:bg-gray-700 dark:border-gray-600"
+                  className="input-primary w-full"
                   placeholder="e.g., A101"
                 />
               </div>
@@ -155,7 +155,7 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode, cues, c
                   name="start_time"
                   value={formData.start_time}
                   onChange={handleChange}
-                  className="px-3 py-2 w-full rounded-md border dark:bg-gray-700"
+                  className="input-primary w-full"
                 />
               </div>
 
@@ -169,7 +169,7 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode, cues, c
                   name="run_time"
                   value={formData.run_time}
                   onChange={handleChange}
-                  className="px-3 py-2 w-full rounded-md border dark:bg-gray-700"
+                  className="input-primary w-full"
                 />
               </div>
 
@@ -183,7 +183,7 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode, cues, c
                   name="end_time"
                   value={formData.end_time}
                   onChange={handleChange}
-                  className="px-3 py-2 w-full rounded-md border dark:bg-gray-700"
+                  className="input-primary w-full"
                 />
               </div>
 
@@ -197,7 +197,7 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode, cues, c
                   name="activity"
                   value={formData.activity}
                   onChange={handleChange}
-                  className="px-3 py-2 w-full rounded-md border dark:bg-gray-700"
+                  className="input-primary w-full"
                 />
               </div>
 
@@ -211,7 +211,7 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode, cues, c
                   name="graphics"
                   value={formData.graphics}
                   onChange={handleChange}
-                  className="px-3 py-2 w-full rounded-md border dark:bg-gray-700"
+                  className="input-primary w-full"
                 />
               </div>
 
@@ -225,7 +225,7 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode, cues, c
                   name="video"
                   value={formData.video}
                   onChange={handleChange}
-                  className="px-3 py-2 w-full rounded-md border dark:bg-gray-700"
+                  className="input-primary w-full"
                 />
               </div>
 
@@ -239,7 +239,7 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode, cues, c
                   name="audio"
                   value={formData.audio}
                   onChange={handleChange}
-                  className="px-3 py-2 w-full rounded-md border dark:bg-gray-700"
+                  className="input-primary w-full"
                 />
               </div>
 
@@ -253,7 +253,7 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode, cues, c
                   name="lighting"
                   value={formData.lighting}
                   onChange={handleChange}
-                  className="px-3 py-2 w-full rounded-md border dark:bg-gray-700"
+                  className="input-primary w-full"
                 />
               </div>
 
@@ -267,7 +267,7 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode, cues, c
                   value={formData.notes}
                   onChange={handleChange}
                   rows={3}
-                  className="px-3 py-2 w-full rounded-md border dark:bg-gray-700"
+                  className="input-primary w-full"
                 />
               </div>
 
@@ -275,13 +275,13 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode, cues, c
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+                  className="btn-outline px-4 py-2 text-sm font-medium rounded-md"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+                  className="btn-primary px-4 py-2 text-sm font-medium rounded-md"
                 >
                   {mode === 'add' ? 'Add Cue' : 'Save Changes'}
                 </button>
@@ -304,13 +304,13 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode, cues, c
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setShowDuplicateDialog(false)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
+                className="btn-outline px-4 py-2 text-sm font-medium rounded-md"
               >
                 Cancel
               </button>
               <button
                 onClick={handleDuplicateUpdate}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md"
+                className="btn-primary px-4 py-2 text-sm font-medium rounded-md"
               >
                 Update Existing
               </button>
