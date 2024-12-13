@@ -212,7 +212,7 @@ export default function CueSheetEditor() {
             />
           </div>
           <div className="overflow-auto rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
-            <table className="min-w-full">
+            <table className={cn("min-w-full", settings.showBorders && "border-collapse [&_td]:border-r [&_th]:border-r dark:[&_td]:border-gray-800 dark:[&_th]:border-gray-800 [&_td]:border-gray-200 [&_th]:border-gray-200 [&_tr_td:last-child]:border-0 [&_tr_th:last-child]:border-0")}>
               <thead>
                 <tr className="border-b border-gray-200 dark:border-gray-800">
                   <th className="w-[50px] text-left p-2 text-gray-600 dark:text-gray-400"></th>
