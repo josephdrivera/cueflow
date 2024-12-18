@@ -1,6 +1,10 @@
-import type { Metadata } from "next";
+"use client";
+
 import localFont from "next/font/local";
-import { ThemeProvider } from "next-themes";
+import { ThemeProvider as NextThemeProvider } from "next-themes";
+import { AppRouterCacheProvider } from '@mui/material-nextjs/v14-appRouter';
+import { LocalizationProvider } from '@mui/x-date-pickers';
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { SettingsProvider } from "@/contexts/SettingsContext";
 import "./globals.css";
 import { clsx } from "clsx";
@@ -10,16 +14,12 @@ const geistSans = localFont({
   variable: "--font-geist-sans",
   weight: "100 900",
 });
+
 const geistMono = localFont({
   src: "./fonts/GeistMonoVF.woff",
   variable: "--font-geist-mono",
   weight: "100 900",
 });
-
-export const metadata: Metadata = {
-  title: "CueFlow",
-  description: "A modern cue sheet manager",
-};
 
 export default function RootLayout({
   children,
@@ -28,20 +28,25 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <head />
-      <body
-        className={`min-h-screen bg-background font-sans antialiased dark:bg-gray-900 ${geistSans.variable} ${geistMono.variable}`}
-      >
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          <SettingsProvider>
-            {children}
-          </SettingsProvider>
-        </ThemeProvider>
+      <body className={clsx(
+        "min-h-screen font-sans antialiased",
+        geistSans.variable,
+        geistMono.variable
+      )}>
+        <AppRouterCacheProvider>
+          <NextThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
+            <LocalizationProvider dateAdapter={AdapterDayjs}>
+              <SettingsProvider>
+                {children}
+              </SettingsProvider>
+            </LocalizationProvider>
+          </NextThemeProvider>
+        </AppRouterCacheProvider>
       </body>
     </html>
   );
