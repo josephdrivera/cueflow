@@ -36,6 +36,18 @@ create table if not exists public.shows (
   metadata jsonb default '{}'::jsonb
 );
 
+-- Create day_cue_lists table
+create table if not exists public.day_cue_lists (
+  id uuid default uuid_generate_v4() primary key,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  updated_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  show_id uuid references public.shows(id) on delete cascade not null,
+  name text not null,
+  date date not null,
+  metadata jsonb default '{}'::jsonb,
+  unique(show_id, date)
+);
+
 -- Create show_flows table
 create table if not exists public.show_flows (
   id uuid default uuid_generate_v4() primary key,
@@ -80,14 +92,15 @@ create table if not exists public.cues (
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,
   updated_at timestamp with time zone default timezone('utc'::text, now()) not null,
   show_id uuid references public.shows(id) on delete cascade not null,
+  cue_list_id uuid references public.day_cue_lists(id) on delete cascade not null,
   cue_number text not null,
   description text,
   start_time interval not null default '00:00:00'::interval,
   run_time interval not null default '00:00:00'::interval,
   end_time interval not null default '00:00:00'::interval,
   metadata jsonb default '{}'::jsonb,
-  unique(show_id, cue_number),
-  unique(show_id, display_id)  -- Ensure display_id is unique within a show
+  unique(cue_list_id, cue_number),
+  unique(cue_list_id, display_id)  -- Ensure display_id is unique within a cue list
 );
 
 -- Create function to generate display_id
@@ -125,6 +138,7 @@ alter table if exists public.show_flows enable row level security;
 alter table if exists public.files enable row level security;
 alter table if exists public.show_collaborators enable row level security;
 alter table if exists public.cues enable row level security;
+alter table if exists public.day_cue_lists enable row level security;
 
 -- Drop existing policies first
 DO $$ 
@@ -152,6 +166,12 @@ BEGIN
     DROP POLICY IF EXISTS "Cues can be created by anyone" ON public.cues;
     DROP POLICY IF EXISTS "Cues can be updated by anyone" ON public.cues;
     DROP POLICY IF EXISTS "Cues can be deleted by anyone" ON public.cues;
+    
+    -- Drop day_cue_lists policies
+    DROP POLICY IF EXISTS "Day cue lists are viewable by show collaborators" ON public.day_cue_lists;
+    DROP POLICY IF EXISTS "Day cue lists can be created by show editors" ON public.day_cue_lists;
+    DROP POLICY IF EXISTS "Day cue lists can be updated by show editors" ON public.day_cue_lists;
+    DROP POLICY IF EXISTS "Day cue lists can be deleted by show editors" ON public.day_cue_lists;
 END $$;
 
 -- Profiles policies
@@ -239,6 +259,47 @@ create policy "Cues can be deleted by anyone"
   on public.cues for delete
   using (true);
 
+-- Day cue lists policies
+create policy "Day cue lists are viewable by show collaborators"
+  on public.day_cue_lists for select
+  using (
+    exists (
+      select 1 from public.shows s
+      left join public.show_collaborators sc on s.id = sc.show_id
+      where s.id = show_id and (s.creator_id = auth.uid() or sc.user_id = auth.uid())
+    )
+  );
+
+create policy "Day cue lists can be created by show editors"
+  on public.day_cue_lists for insert
+  with check (
+    exists (
+      select 1 from public.shows s
+      left join public.show_collaborators sc on s.id = sc.show_id
+      where s.id = show_id and (s.creator_id = auth.uid() or (sc.user_id = auth.uid() and sc.can_edit = true))
+    )
+  );
+
+create policy "Day cue lists can be updated by show editors"
+  on public.day_cue_lists for update
+  using (
+    exists (
+      select 1 from public.shows s
+      left join public.show_collaborators sc on s.id = sc.show_id
+      where s.id = show_id and (s.creator_id = auth.uid() or (sc.user_id = auth.uid() and sc.can_edit = true))
+    )
+  );
+
+create policy "Day cue lists can be deleted by show editors"
+  on public.day_cue_lists for delete
+  using (
+    exists (
+      select 1 from public.shows s
+      left join public.show_collaborators sc on s.id = sc.show_id
+      where s.id = show_id and (s.creator_id = auth.uid() or (sc.user_id = auth.uid() and sc.can_edit = true))
+    )
+  );
+
 -- Drop existing triggers first
 DO $$ 
 BEGIN
@@ -248,6 +309,7 @@ BEGIN
     DROP TRIGGER IF EXISTS handle_updated_at ON public.show_flows;
     DROP TRIGGER IF EXISTS handle_updated_at ON public.files;
     DROP TRIGGER IF EXISTS handle_updated_at ON public.cues;
+    DROP TRIGGER IF EXISTS handle_updated_at ON public.day_cue_lists;
 END $$;
 
 -- Functions and triggers
@@ -291,4 +353,8 @@ create trigger handle_updated_at
 
 create trigger handle_updated_at
   before update on public.cues
+  for each row execute procedure public.handle_updated_at();
+
+create trigger handle_updated_at
+  before update on public.day_cue_lists
   for each row execute procedure public.handle_updated_at();

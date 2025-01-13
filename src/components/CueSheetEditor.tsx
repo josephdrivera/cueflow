@@ -1,16 +1,18 @@
-"use client"
+"use client";
 
-import * as React from "react"
+import React, { Suspense } from 'react';
 import { Clock, Edit2, Plus, Settings, Settings2, Trash2, GripVertical, Check, X } from 'lucide-react'
 import { ThemeToggle } from "./ThemeToggle"
 import { CueModal } from './CueModal';
 import { Cue } from "@/types/cue";
 import { getAllCues, updateCue, createCue, deleteCue } from "@/services/cueService";
 import { Show, createShow, getAllShows, updateShow } from "@/services/showService";
+import { DayCueList } from "@/types/dayCueList";
 import { cn } from "@/lib/utils";
 import { validateCueNumber, generateCueNumberBetween, ensureUniqueCueNumber } from '@/utils/cueNumbering';
 import { useSettings } from '@/contexts/SettingsContext';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import {
   DndContext,
   closestCenter,
@@ -30,15 +32,26 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { supabase } from "@/lib/supabase";
 
+const DynamicCueStats = dynamic(() => import('./CueStats').then(mod => mod.CueStats), {
+  ssr: false
+});
+
+const DynamicAddCueListModal = dynamic(() => import('./AddCueListModal').then(mod => mod.AddCueListModal), {
+  ssr: false
+});
+
 const CueSheetEditor = () => {
   const [cues, setCues] = React.useState<Cue[]>([]);
   const [show, setShow] = React.useState<Show | null>(null);
+  const [cueLists, setCueLists] = React.useState<DayCueList[]>([]);
+  const [selectedCueList, setSelectedCueList] = React.useState<DayCueList | null>(null);
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [selectedCue, setSelectedCue] = React.useState<Cue | undefined>();
   const [modalMode, setModalMode] = React.useState<'add' | 'edit'>('add');
   const [currentIndex, setCurrentIndex] = React.useState<number | undefined>();
   const [isEditingTitle, setIsEditingTitle] = React.useState(false);
   const [editedTitle, setEditedTitle] = React.useState("");
+  const [isAddingCueList, setIsAddingCueList] = React.useState(false);
   const { settings } = useSettings();
   const tableRef = React.useRef<HTMLTableElement>(null);
 
@@ -76,12 +89,32 @@ const CueSheetEditor = () => {
         setShow(currentShow);
 
         try {
-          const loadedCues = await getAllCues(currentShow.id);
-          console.log('Loaded cues:', loadedCues);
-          setCues(loadedCues);
+          // Load cue lists
+          const { data: lists, error: listsError } = await supabase
+            .from('day_cue_lists')
+            .select('*')
+            .eq('show_id', currentShow.id)
+            .order('date');
+
+          if (listsError) throw listsError;
+          setCueLists(lists);
+
+          // If there are cue lists, select the first one
+          if (lists.length > 0) {
+            setSelectedCueList(lists[0]);
+            
+            // Load cues for the selected cue list
+            const { data: cueData, error: cuesError } = await supabase
+              .from('cues')
+              .select('*')
+              .eq('cue_list_id', lists[0].id)
+              .order('cue_number');
+
+            if (cuesError) throw cuesError;
+            setCues(cueData);
+          }
         } catch (error) {
-          console.error('Error loading cues:', error);
-          setCues([]);
+          console.error('Error loading cue lists:', error);
         }
       } catch (error) {
         console.error('Error in loadShowAndCues:', error);
@@ -112,8 +145,8 @@ const CueSheetEditor = () => {
     }
 
     try {
-      if (!show?.id) {
-        console.error('No show ID available');
+      if (!selectedCueList?.id) {
+        console.error('No cue list ID available');
         return;
       }
 
@@ -191,7 +224,7 @@ const CueSheetEditor = () => {
       const { data: refreshedCues, error: refreshError } = await supabase
         .from('cues')
         .select('*')
-        .eq('show_id', show.id)
+        .eq('cue_list_id', selectedCueList.id)
         .order('cue_number');
 
       if (refreshError) {
@@ -213,7 +246,7 @@ const CueSheetEditor = () => {
         const { data: refreshedCues } = await supabase
           .from('cues')
           .select('*')
-          .eq('show_id', show?.id)
+          .eq('cue_list_id', selectedCueList?.id)
           .order('cue_number');
         if (refreshedCues) {
           setCues(refreshedCues);
@@ -266,8 +299,8 @@ const CueSheetEditor = () => {
 
   const handleSubmitCue = async (cueData: Cue | Omit<Cue, 'cue_number'>) => {
     try {
-      if (!show) {
-        console.error('No show selected');
+      if (!selectedCueList?.id) {
+        console.error('No cue list selected');
         return;
       }
 
@@ -288,7 +321,7 @@ const CueSheetEditor = () => {
         // It's a new cue
         const newCue = await createCue({
           ...cueData,
-          show_id: show.id,
+          cue_list_id: selectedCueList.id,
           cue_number: cueData.display_id,
         });
 
@@ -349,6 +382,23 @@ const CueSheetEditor = () => {
   }, [cues]);
 
   const totals = React.useMemo(() => calculateTotals(), [calculateTotals]);
+
+  // Add a formatDate utility function
+  const formatDate = (dateStr: string) => {
+    try {
+      // Use UTC to ensure consistent formatting between server and client
+      const date = new Date(dateStr);
+      return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        timeZone: 'UTC'
+      });
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return dateStr;
+    }
+  };
 
   // Sortable cue row component
   function SortableCueRow({ cue, index, onEdit, onDelete }: { 
@@ -411,6 +461,12 @@ const CueSheetEditor = () => {
     );
   }
 
+  const handleCueListAdded = (newCueList: DayCueList) => {
+    setCueLists([...cueLists, newCueList]);
+    setSelectedCueList(newCueList);
+    setIsAddingCueList(false);
+  };
+
   return (
     <div className={cn(
       "min-h-screen bg-white dark:bg-gray-900",
@@ -424,18 +480,18 @@ const CueSheetEditor = () => {
                 type="text"
                 value={editedTitle}
                 onChange={(e) => setEditedTitle(e.target.value)}
-                className="px-2 py-1 border rounded dark:bg-gray-800 dark:border-gray-700"
+                className="px-2 py-1 rounded border dark:bg-gray-800 dark:border-gray-700"
                 autoFocus
               />
               <button
                 onClick={handleUpdateShowTitle}
-                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full"
+                className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
               >
                 <Check className="w-5 h-5 text-green-500" />
               </button>
               <button
                 onClick={() => setIsEditingTitle(false)}
-                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full"
+                className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
               >
                 <X className="w-5 h-5 text-red-500" />
               </button>
@@ -445,7 +501,7 @@ const CueSheetEditor = () => {
               <h1 className="text-2xl font-bold">{show?.title || "Loading..."}</h1>
               <button
                 onClick={startEditingTitle}
-                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full"
+                className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
               >
                 <Edit2 className="w-4 h-4" />
               </button>
@@ -453,47 +509,61 @@ const CueSheetEditor = () => {
           )}
         </div>
         <div className="flex items-center space-x-4">
-          <Link
-            href="/settings"
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
-          >
-            <Settings2 className="w-5 h-5" />
-          </Link>
-          <ThemeToggle />
-          <button className="inline-flex items-center px-4 py-2 rounded-md border border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800">
-            <Clock className="mr-2 w-4 h-4" />
-            Live Mode
-          </button>
+          <Suspense fallback={<div>Loading...</div>}>
+            <select
+              value={selectedCueList?.id || ""}
+              onChange={(e) => {
+                const selected = cueLists.find(list => list.id === e.target.value);
+                setSelectedCueList(selected || null);
+              }}
+              className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+            >
+              <option value="">Select a cue list</option>
+              {cueLists.map((list) => (
+                <option key={list.id} value={list.id}>
+                  {list.name} ({formatDate(list.date)})
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={() => setIsAddingCueList(true)}
+              className="flex items-center gap-2 rounded-md bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
+            >
+              <Plus size={16} />
+              Add Cue List
+            </button>
+            <button
+              onClick={() => {
+                if (!selectedCueList) return;
+                setModalMode('add');
+                setSelectedCue(undefined);
+                setIsModalOpen(true);
+              }}
+              className="flex items-center gap-2 rounded-md bg-green-500 px-4 py-2 text-white hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={!selectedCueList}
+            >
+              <Plus size={16} />
+              Add Cue
+            </button>
+            <ThemeToggle />
+            <Link href="/settings" className="text-gray-500 hover:text-gray-600">
+              <Settings2 className="w-5 h-5" />
+            </Link>
+          </Suspense>
         </div>
       </header>
       <main className="flex overflow-hidden flex-1">
         <div className="flex-1 p-4">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-medium text-gray-900 dark:text-gray-300">Cue List</h2>
-            <button 
-              onClick={() => handleAddCue()}
-              className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700"
-            >
-              <Plus className="mr-2 w-4 h-4" />
-              Add Cue
-            </button>
           </div>
-          {settings.showSearch && (
-            <div className="flex items-center mb-4 space-x-2">
-              <input
-                type="text"
-                className="flex-grow px-3 py-2 placeholder-gray-500 text-gray-900 bg-white rounded-md border border-gray-200 dark:border-gray-800 dark:bg-gray-800 dark:text-gray-300 dark:placeholder-gray-400"
-                placeholder="Search cues..."
-              />
-            </div>
-          )}
           <div className="overflow-auto bg-white rounded-lg border border-gray-200 dark:border-gray-800 dark:bg-gray-900">
             <DndContext
               sensors={sensors}
               collisionDetection={closestCenter}
               onDragEnd={handleDragEnd}
             >
-              <table ref={tableRef} className="min-w-full">
+              <table ref={tableRef} className={cn("min-w-full", settings.showBorders && "border-collapse [&_td]:border-r [&_th]:border-r dark:[&_td]:border-gray-800 dark:[&_th]:border-gray-800 [&_td]:border-gray-200 [&_th]:border-gray-200 [&_tr_td:last-child]:border-0 [&_tr_th:last-child]:border-0")}>
                 <thead>
                   <tr className="border-b border-gray-200 dark:border-gray-800">
                     <th className="w-[50px] text-left p-2 text-gray-600 dark:text-gray-400"></th>
@@ -539,32 +609,25 @@ const CueSheetEditor = () => {
           </div>
           {/* Totals Footer */}
           {settings.showStats && (
-            <div className="p-4 mt-4 bg-white rounded-lg border border-gray-200 dark:border-gray-800 dark:bg-gray-900">
-              <div className="flex justify-between items-center">
-                <div className="text-gray-600 dark:text-gray-400">
-                  Total Cues: <span className="font-medium text-gray-900 dark:text-gray-300">{totals.totalCues}</span>
-                </div>
-                <div className="text-gray-600 dark:text-gray-400">
-                  Total Running Time: <span className="font-medium text-gray-900 dark:text-gray-300">{totals.formattedTotalTime}</span>
-                </div>
-                <div className="text-gray-600 dark:text-gray-400">
-                  Current Time: <span className="font-medium text-gray-900 dark:text-gray-300">
-                    {new Date('2025-01-13T15:52:30-05:00').toLocaleDateString('en-US', { 
-                      weekday: 'long',
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      second: '2-digit'
-                    })}
-                  </span>
-                </div>
-              </div>
-            </div>
+            <Suspense fallback={<div>Loading stats...</div>}>
+              <DynamicCueStats
+                totalCues={totals.totalCues}
+                formattedTotalTime={totals.formattedTotalTime}
+              />
+            </Suspense>
           )}
         </div>
       </main>
+      
+      {/* Add Cue List Modal */}
+      <Suspense fallback={null}>
+        <DynamicAddCueListModal
+          showId={show?.id || ''}
+          isOpen={isAddingCueList}
+          onClose={() => setIsAddingCueList(false)}
+          onSuccess={handleCueListAdded}
+        />
+      </Suspense>
       
       <CueModal
         isOpen={isModalOpen}
