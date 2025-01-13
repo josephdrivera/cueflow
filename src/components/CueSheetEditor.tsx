@@ -538,29 +538,31 @@ const CueSheetEditor = () => {
             </DndContext>
           </div>
           {/* Totals Footer */}
-          <div className="p-4 mt-4 bg-white rounded-lg border border-gray-200 dark:border-gray-800 dark:bg-gray-900">
-            <div className="flex justify-between items-center">
-              <div className="text-gray-600 dark:text-gray-400">
-                Total Cues: <span className="font-medium text-gray-900 dark:text-gray-300">{totals.totalCues}</span>
-              </div>
-              <div className="text-gray-600 dark:text-gray-400">
-                Total Running Time: <span className="font-medium text-gray-900 dark:text-gray-300">{totals.formattedTotalTime}</span>
-              </div>
-              <div className="text-gray-600 dark:text-gray-400">
-                Current Time: <span className="font-medium text-gray-900 dark:text-gray-300">
-                  {new Date().toLocaleDateString('en-US', { 
-                    weekday: 'long',
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit'
-                  })}
-                </span>
+          {settings.showStats && (
+            <div className="p-4 mt-4 bg-white rounded-lg border border-gray-200 dark:border-gray-800 dark:bg-gray-900">
+              <div className="flex justify-between items-center">
+                <div className="text-gray-600 dark:text-gray-400">
+                  Total Cues: <span className="font-medium text-gray-900 dark:text-gray-300">{totals.totalCues}</span>
+                </div>
+                <div className="text-gray-600 dark:text-gray-400">
+                  Total Running Time: <span className="font-medium text-gray-900 dark:text-gray-300">{totals.formattedTotalTime}</span>
+                </div>
+                <div className="text-gray-600 dark:text-gray-400">
+                  Current Time: <span className="font-medium text-gray-900 dark:text-gray-300">
+                    {new Date('2025-01-13T15:52:30-05:00').toLocaleDateString('en-US', { 
+                      weekday: 'long',
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit'
+                    })}
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
       </main>
       

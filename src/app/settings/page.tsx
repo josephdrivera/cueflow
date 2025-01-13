@@ -161,6 +161,33 @@ export default function SettingsPage() {
             </div>
           </section>
 
+          {/* Show Stats Settings */}
+          <section>
+            <h2 className="text-lg font-semibold mb-4">Statistics</h2>
+            <div className="space-y-4 bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-medium">Show Statistics</h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Display total cues, running time, and current time at the bottom of the cue sheet
+                  </p>
+                </div>
+                <button
+                  onClick={() => updateSettings({ showStats: !settings.showStats })}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    settings.showStats ? 'bg-blue-500' : 'bg-gray-200 dark:bg-gray-700'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      settings.showStats ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+          </section>
+
           {/* Add more sections here as needed */}
         </div>
       </div>

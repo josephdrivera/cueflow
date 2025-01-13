@@ -6,6 +6,7 @@ interface Settings {
   showBorders: boolean;
   showSearch: boolean;
   fontSize: 'small' | 'medium' | 'large';
+  showStats: boolean;
   // Add more settings here as needed
 }
 
@@ -18,6 +19,7 @@ const defaultSettings: Settings = {
   showBorders: true,
   showSearch: true,
   fontSize: 'medium',
+  showStats: true,
 };
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
