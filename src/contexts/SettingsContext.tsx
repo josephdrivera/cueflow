@@ -4,6 +4,8 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 
 interface Settings {
   showBorders: boolean;
+  showSearch: boolean;
+  fontSize: 'small' | 'medium' | 'large';
   // Add more settings here as needed
 }
 
@@ -14,6 +16,8 @@ interface SettingsContextType {
 
 const defaultSettings: Settings = {
   showBorders: true,
+  showSearch: true,
+  fontSize: 'medium',
 };
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);

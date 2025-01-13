@@ -68,6 +68,45 @@ export default function SettingsPage() {
             </div>
           </section>
 
+          {/* Font Size Settings */}
+          <section>
+            <h2 className="text-lg font-semibold mb-4">Font Size</h2>
+            <div className="space-y-4 bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
+              <div className="grid grid-cols-3 gap-4">
+                <button
+                  onClick={() => updateSettings({ fontSize: 'small' })}
+                  className={`flex flex-col items-center justify-center p-4 rounded-lg border-2 transition-colors ${
+                    settings.fontSize === 'small'
+                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                      : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                  }`}
+                >
+                  <span className="text-sm font-medium">Small</span>
+                </button>
+                <button
+                  onClick={() => updateSettings({ fontSize: 'medium' })}
+                  className={`flex flex-col items-center justify-center p-4 rounded-lg border-2 transition-colors ${
+                    settings.fontSize === 'medium'
+                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                      : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                  }`}
+                >
+                  <span className="text-sm font-medium">Medium</span>
+                </button>
+                <button
+                  onClick={() => updateSettings({ fontSize: 'large' })}
+                  className={`flex flex-col items-center justify-center p-4 rounded-lg border-2 transition-colors ${
+                    settings.fontSize === 'large'
+                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                      : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                  }`}
+                >
+                  <span className="text-sm font-medium">Large</span>
+                </button>
+              </div>
+            </div>
+          </section>
+
           {/* Display Settings */}
           <section>
             <h2 className="text-lg font-semibold mb-4">Display</h2>
@@ -91,6 +130,30 @@ export default function SettingsPage() {
                   <span
                     className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
                       settings.showBorders ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
+                <div>
+                  <label htmlFor="show-search" className="font-medium">
+                    Show Search Bar
+                  </label>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Display search bar for filtering cues
+                  </p>
+                </div>
+                <button
+                  id="show-search"
+                  onClick={() => updateSettings({ showSearch: !settings.showSearch })}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                    settings.showSearch ? 'bg-blue-600' : 'bg-gray-200 dark:bg-gray-700'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      settings.showSearch ? 'translate-x-6' : 'translate-x-1'
                     }`}
                   />
                 </button>

@@ -42,6 +42,17 @@ const CueSheetEditor = () => {
   const { settings } = useSettings();
   const tableRef = React.useRef<HTMLTableElement>(null);
 
+  const getFontSizeClass = () => {
+    switch (settings.fontSize) {
+      case 'small':
+        return 'text-sm';
+      case 'large':
+        return 'text-lg';
+      default:
+        return 'text-base';
+    }
+  };
+
   // Load or create show and its cues when component mounts
   React.useEffect(() => {
     const loadShowAndCues = async () => {
@@ -401,7 +412,10 @@ const CueSheetEditor = () => {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-white dark:bg-gray-900">
+    <div className={cn(
+      "min-h-screen bg-white dark:bg-gray-900",
+      getFontSizeClass()
+    )}>
       <header className="flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-800">
         <div className="flex items-center space-x-4">
           {isEditingTitle ? (
@@ -464,13 +478,15 @@ const CueSheetEditor = () => {
               Add Cue
             </button>
           </div>
-          <div className="flex items-center mb-4 space-x-2">
-            <input
-              type="text"
-              className="flex-grow px-3 py-2 placeholder-gray-500 text-gray-900 bg-white rounded-md border border-gray-200 dark:border-gray-800 dark:bg-gray-800 dark:text-gray-300 dark:placeholder-gray-400"
-              placeholder="Search cues..."
-            />
-          </div>
+          {settings.showSearch && (
+            <div className="flex items-center mb-4 space-x-2">
+              <input
+                type="text"
+                className="flex-grow px-3 py-2 placeholder-gray-500 text-gray-900 bg-white rounded-md border border-gray-200 dark:border-gray-800 dark:bg-gray-800 dark:text-gray-300 dark:placeholder-gray-400"
+                placeholder="Search cues..."
+              />
+            </div>
+          )}
           <div className="overflow-auto bg-white rounded-lg border border-gray-200 dark:border-gray-800 dark:bg-gray-900">
             <DndContext
               sensors={sensors}
