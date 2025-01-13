@@ -1,10 +1,8 @@
 export interface Cue {
   id: string;           // System ID (UUID)
-  display_id: string;   // Display ID (e.g., CUE-001)
   created_at?: string;
   updated_at?: string;
-  show_id: string;
-  cue_list_id: string; // Reference to the day's cue list
+  day_cue_list_id: string; // Reference to the day's cue list
   cue_number: string;
   start_time: string;  // Required time field
   run_time: string;    // Required time field

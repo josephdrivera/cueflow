@@ -364,7 +364,10 @@ const CueSheetEditor = () => {
       if ('id' in cueData) {
         const updatedCue = await updateCue(cueData.id, {
           ...cueData,
-          cue_number: cueData.display_id || cueData.cue_number,
+          cue_number: cueData.cue_number,
+          start_time: cueData.start_time || '00:00:00',
+          run_time: cueData.run_time || '00:00:00',
+          end_time: cueData.end_time || '00:00:00',
         });
         
         // Update the cues list
@@ -377,8 +380,11 @@ const CueSheetEditor = () => {
         // It's a new cue
         const newCue = await createCue({
           ...cueData,
-          cue_list_id: selectedCueList.id,
-          cue_number: cueData.display_id,
+          day_cue_list_id: selectedCueList.id,
+          cue_number: cueData.cue_number || '1',
+          start_time: cueData.start_time || '00:00:00',
+          run_time: cueData.run_time || '00:00:00',
+          end_time: cueData.end_time || '00:00:00',
         });
 
         setCues(prevCues => [...prevCues, newCue].sort((a, b) => 

@@ -48,11 +48,11 @@ export async function createCue(cue: NewCue): Promise<Cue> {
 
     // Prepare the new cue data exactly as per schema
     const newCue = {
-      show_id: cue.show_id,
+      day_cue_list_id: cue.cue_list_id, // Map to correct field name
       cue_number: cue.cue_number,
-      start_time: cue.start_time,  
-      run_time: cue.run_time,      
-      end_time: cue.end_time,      
+      start_time: cue.start_time || '00:00:00',  // Provide defaults for required fields
+      run_time: cue.run_time || '00:00:00',      
+      end_time: cue.end_time || '00:00:00',      
       activity: cue.activity ?? '',
       graphics: cue.graphics ?? '',
       video: cue.video ?? '',
