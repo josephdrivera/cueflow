@@ -3,6 +3,7 @@
 import React from 'react';
 import { supabase } from "@/lib/supabase";
 import { DayCueList } from "@/types/cue";
+import { useAuth } from '@/contexts/AuthContext';
 
 interface AddCueListModalProps {
   showId: string;
@@ -12,6 +13,7 @@ interface AddCueListModalProps {
 }
 
 export function AddCueListModal({ showId, isOpen, onClose, onSuccess }: AddCueListModalProps) {
+  const { user } = useAuth();
   const [newCueListName, setNewCueListName] = React.useState("");
   const [newCueListDate, setNewCueListDate] = React.useState("");
   const [error, setError] = React.useState("");

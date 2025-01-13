@@ -18,6 +18,8 @@ interface CueModalProps {
 }
 
 export function CueModal({ isOpen, onClose, onSubmit, initialData, mode, cues, currentIndex, showId }: CueModalProps) {
+  const [mounted, setMounted] = useState(false);
+  
   const [formData, setFormData] = useState<Partial<Cue>>(() => {
     if (initialData) {
       return {
@@ -41,6 +43,11 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode, cues, c
 
   const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
 
+  // Mount effect should be first
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   // Update formData when initialData or mode changes
   useEffect(() => {
     if (initialData) {
@@ -55,6 +62,22 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode, cues, c
       }));
     }
   }, [initialData, mode, cues, currentIndex]);
+
+  // Helper function to format time values
+  const formatTimeValue = (value: string | null): string | null => {
+    if (!value) return null;
+    
+    // If it's already in HH:MM:SS format, return as is
+    if (value.includes(':')) return value;
+    
+    // If it's just a number, assume it's minutes and convert to HH:MM:SS
+    const minutes = parseInt(value, 10);
+    if (isNaN(minutes)) return null;
+    
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    return `${hours.toString().padStart(2, '0')}:${remainingMinutes.toString().padStart(2, '0')}:00`;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -76,14 +99,17 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode, cues, c
       const submissionData = {
         ...formData,
         show_id: showId,
-        cue_number: formData.display_id
+        cue_number: formData.display_id,
+        // Format time fields
+        start_time: formData.start_time || null,
+        run_time: formatTimeValue(formData.run_time),
+        end_time: formData.end_time || null
       };
 
       onSubmit(submissionData);
       onClose();
     } catch (error) {
       console.error('Error checking for duplicate cue:', error);
-      // You might want to show an error message to the user here
     }
   };
 
@@ -115,11 +141,16 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode, cues, c
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
+    setFormData(prev => ({
       ...prev,
-      [name]: value,
+      [name]: value
     }));
   };
+
+  // Don't render anything until mounted
+  if (!mounted) {
+    return null;
+  }
 
   return (
     <>
@@ -141,7 +172,7 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode, cues, c
                   name="display_id"
                   value={formData.display_id || ''}
                   onChange={handleChange}
-                  className="input-primary w-full"
+                  className="w-full input-primary"
                   placeholder="e.g., A101"
                 />
               </div>
@@ -155,7 +186,7 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode, cues, c
                   name="start_time"
                   value={formData.start_time}
                   onChange={handleChange}
-                  className="input-primary w-full"
+                  className="w-full input-primary"
                 />
               </div>
 
@@ -169,7 +200,7 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode, cues, c
                   name="run_time"
                   value={formData.run_time}
                   onChange={handleChange}
-                  className="input-primary w-full"
+                  className="w-full input-primary"
                 />
               </div>
 
@@ -183,7 +214,7 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode, cues, c
                   name="end_time"
                   value={formData.end_time}
                   onChange={handleChange}
-                  className="input-primary w-full"
+                  className="w-full input-primary"
                 />
               </div>
 
@@ -197,7 +228,7 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode, cues, c
                   name="activity"
                   value={formData.activity}
                   onChange={handleChange}
-                  className="input-primary w-full"
+                  className="w-full input-primary"
                 />
               </div>
 
@@ -211,7 +242,7 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode, cues, c
                   name="graphics"
                   value={formData.graphics}
                   onChange={handleChange}
-                  className="input-primary w-full"
+                  className="w-full input-primary"
                 />
               </div>
 
@@ -225,7 +256,7 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode, cues, c
                   name="video"
                   value={formData.video}
                   onChange={handleChange}
-                  className="input-primary w-full"
+                  className="w-full input-primary"
                 />
               </div>
 
@@ -239,7 +270,7 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode, cues, c
                   name="audio"
                   value={formData.audio}
                   onChange={handleChange}
-                  className="input-primary w-full"
+                  className="w-full input-primary"
                 />
               </div>
 
@@ -253,7 +284,7 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode, cues, c
                   name="lighting"
                   value={formData.lighting}
                   onChange={handleChange}
-                  className="input-primary w-full"
+                  className="w-full input-primary"
                 />
               </div>
 
@@ -267,7 +298,7 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode, cues, c
                   value={formData.notes}
                   onChange={handleChange}
                   rows={3}
-                  className="input-primary w-full"
+                  className="w-full input-primary"
                 />
               </div>
 
@@ -275,13 +306,13 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode, cues, c
                 <button
                   type="button"
                   onClick={onClose}
-                  className="btn-outline px-4 py-2 text-sm font-medium rounded-md"
+                  className="px-4 py-2 text-sm font-medium rounded-md btn-outline"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="btn-primary px-4 py-2 text-sm font-medium rounded-md"
+                  className="px-4 py-2 text-sm font-medium rounded-md btn-primary"
                 >
                   {mode === 'add' ? 'Add Cue' : 'Save Changes'}
                 </button>
@@ -294,23 +325,23 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode, cues, c
       <Dialog.Root open={showDuplicateDialog} onOpenChange={setShowDuplicateDialog}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-black/50" />
-          <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg w-full max-w-md">
-            <Dialog.Title className="text-lg font-semibold mb-2">
+          <Dialog.Content className="fixed top-1/2 left-1/2 p-6 w-full max-w-md bg-white rounded-lg shadow-lg -translate-x-1/2 -translate-y-1/2 dark:bg-gray-800">
+            <Dialog.Title className="mb-2 text-lg font-semibold">
               Duplicate Cue Number
             </Dialog.Title>
             <Dialog.Description className="mb-4 text-gray-600 dark:text-gray-300">
               Cue number {formData.display_id} is already in use. Would you like to update the existing cue?
             </Dialog.Description>
-            <div className="flex justify-end gap-3">
+            <div className="flex gap-3 justify-end">
               <button
                 onClick={() => setShowDuplicateDialog(false)}
-                className="btn-outline px-4 py-2 text-sm font-medium rounded-md"
+                className="px-4 py-2 text-sm font-medium rounded-md btn-outline"
               >
                 Cancel
               </button>
               <button
                 onClick={handleDuplicateUpdate}
-                className="btn-primary px-4 py-2 text-sm font-medium rounded-md"
+                className="px-4 py-2 text-sm font-medium rounded-md btn-primary"
               >
                 Update Existing
               </button>

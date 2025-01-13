@@ -6,6 +6,7 @@ import { AppRouterCacheProvider } from '@mui/material-nextjs/v14-appRouter';
 import { LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { SettingsProvider } from "@/contexts/SettingsContext";
+import { AuthProvider } from "@/contexts/AuthContext";
 import "./globals.css";
 import { clsx } from "clsx";
 
@@ -41,9 +42,11 @@ export default function RootLayout({
             disableTransitionOnChange
           >
             <LocalizationProvider dateAdapter={AdapterDayjs}>
-              <SettingsProvider>
-                {children}
-              </SettingsProvider>
+              <AuthProvider>
+                <SettingsProvider>
+                  {children}
+                </SettingsProvider>
+              </AuthProvider>
             </LocalizationProvider>
           </NextThemeProvider>
         </AppRouterCacheProvider>
