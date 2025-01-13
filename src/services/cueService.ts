@@ -239,6 +239,61 @@ export async function checkDuplicateCueNumber(showId: string, cueNumber: string,
   }
 }
 
+// Move a cue up by swapping with the previous cue
+export async function moveCueUp(cue: Cue, previousCue: Cue): Promise<[Cue, Cue]> {
+  try {
+    console.log('Moving cue up:', { cue, previousCue });
+    
+    const tempCueNumber = cue.cue_number;
+    
+    // Update first cue
+    const { data: firstUpdate, error: firstError } = await supabase
+      .from(TABLE_NAME)
+      .update({ cue_number: previousCue.cue_number })
+      .eq('id', cue.id)
+      .select()
+      .single();
+
+    if (firstError) {
+      console.error('Error updating first cue:', firstError);
+      throw firstError;
+    }
+
+    // Update second cue
+    const { data: secondUpdate, error: secondError } = await supabase
+      .from(TABLE_NAME)
+      .update({ cue_number: tempCueNumber })
+      .eq('id', previousCue.id)
+      .select()
+      .single();
+
+    if (secondError) {
+      console.error('Error updating second cue:', secondError);
+      throw secondError;
+    }
+
+    if (!firstUpdate || !secondUpdate) {
+      throw new Error('Failed to update one or both cues');
+    }
+
+    return [firstUpdate, secondUpdate];
+  } catch (error) {
+    console.error('Error in moveCueUp:', error);
+    throw error;
+  }
+}
+
+// Move a cue down by swapping with the next cue
+export async function moveCueDown(cue: Cue, nextCue: Cue): Promise<[Cue, Cue]> {
+  try {
+    console.log('Moving cue down:', { cue, nextCue });
+    return moveCueUp(nextCue, cue);
+  } catch (error) {
+    console.error('Error in moveCueDown:', error);
+    throw error;
+  }
+}
+
 // Helper functions for cue number generation
 
 function generateCueNumberBefore(number: string): string {
