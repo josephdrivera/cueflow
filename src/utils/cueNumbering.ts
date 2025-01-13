@@ -1,4 +1,4 @@
-interface ParsedCueNumber {
+export interface ParsedCueNumber {
   prefix: string;
   number: number;
 }
@@ -19,38 +19,47 @@ export function formatCueNumber(prefix: string, number: number): string {
 }
 
 export function generateCueNumberBetween(prevNumber: string | null, nextNumber: string | null): string {
+  // Default case for empty list or first item
   if (!prevNumber) {
     return nextNumber ? insertBefore(nextNumber) : 'A101';
   }
   if (!nextNumber) {
     return insertAfter(prevNumber);
   }
+
+  // Parse the numbers
+  const prevMatch = prevNumber.match(/^([A-Z])(\d+)([a-z])?$/);
+  const nextMatch = nextNumber.match(/^([A-Z])(\d+)([a-z])?$/);
   
-  // If custom format is detected (like A101b), append 'a' to the previous number
-  if (prevNumber.match(/[A-Z]\d+[a-z]?/) && !nextNumber.match(/[A-Z]\d+[a-z]?/)) {
-    return prevNumber + 'a';
+  if (!prevMatch || !nextMatch) {
+    throw new Error(`Invalid cue number format: ${!prevMatch ? prevNumber : nextNumber}`);
   }
 
-  // Handle numeric part
-  const prevBase = prevNumber.match(/[A-Z]\d+/)?.[0] || prevNumber;
-  const nextBase = nextNumber.match(/[A-Z]\d+/)?.[0] || nextNumber;
+  const [, prevLetter, prevNum, prevSuffix] = prevMatch;
+  const [, nextLetter, nextNum] = nextMatch;
   
-  if (prevBase === nextBase) {
-    // If they have the same base, append 'a' to the previous number
-    return prevNumber + 'a';
+  const prevNumInt = parseInt(prevNum);
+  const nextNumInt = parseInt(nextNum);
+
+  // If numbers are the same, handle suffixes
+  if (prevNumInt === nextNumInt) {
+    if (!prevSuffix) {
+      return `${prevLetter}${prevNum}a`;
+    }
+    const nextSuffixChar = String.fromCharCode(prevSuffix.charCodeAt(0) + 1);
+    if (nextSuffixChar <= 'z') {
+      return `${prevLetter}${prevNum}${nextSuffixChar}`;
+    }
   }
 
-  // Default to numeric interpolation
-  const prevNum = parseInt(prevNumber.match(/\d+/)?.[0] || '0');
-  const nextNum = parseInt(nextNumber.match(/\d+/)?.[0] || '999');
-  
-  if (nextNum - prevNum > 1) {
-    const middleNum = Math.floor((prevNum + nextNum) / 2);
-    return `A${middleNum.toString().padStart(3, '0')}`;
+  // If numbers are consecutive
+  if (nextNumInt - prevNumInt === 1) {
+    return `${prevLetter}${prevNum}a`;
   }
-  
-  // If numbers are consecutive, append 'a' to the previous number
-  return prevNumber + 'a';
+
+  // If there's space between numbers
+  const middleNum = Math.floor((prevNumInt + nextNumInt) / 2);
+  return `${prevLetter}${middleNum.toString().padStart(3, '0')}`;
 }
 
 function insertBefore(num: string): string {
@@ -154,4 +163,33 @@ export function getNextAvailableCueNumber(existingCueNumbers: string[]): string 
   }
 
   return formatCueNumber(parsed.prefix, parsed.number + 1);
+}
+
+export function ensureUniqueCueNumber(baseNumber: string, existingNumbers: string[]): string {
+  if (!existingNumbers.includes(baseNumber)) {
+    return baseNumber;
+  }
+
+  // If the base number already exists, try adding suffixes
+  const match = baseNumber.match(/^([A-Z]\d+)([a-z])?$/);
+  if (!match) {
+    throw new Error(`Invalid cue number format: ${baseNumber}`);
+  }
+
+  const [, base, suffix] = match;
+  const nextSuffix = suffix ? String.fromCharCode(suffix.charCodeAt(0) + 1) : 'a';
+  const candidateNumber = `${base}${nextSuffix}`;
+  
+  if (nextSuffix > 'z') {
+    // If we've exhausted suffixes, increment the number
+    const numMatch = base.match(/^([A-Z])(\d+)$/);
+    if (!numMatch) {
+      throw new Error(`Invalid base number format: ${base}`);
+    }
+    const [, letter, num] = numMatch;
+    const nextNum = parseInt(num) + 1;
+    return ensureUniqueCueNumber(`${letter}${nextNum.toString().padStart(3, '0')}`, existingNumbers);
+  }
+
+  return ensureUniqueCueNumber(candidateNumber, existingNumbers);
 }

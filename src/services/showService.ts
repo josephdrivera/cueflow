@@ -45,16 +45,10 @@ export async function createShow(show: NewShow): Promise<Show> {
     }
     
     return data;
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error in createShow:', error);
-    if (error.message) {
+    if (error instanceof Error) {
       console.error('Error message:', error.message);
-    }
-    if (error.details) {
-      console.error('Error details:', error.details);
-    }
-    if (error.hint) {
-      console.error('Error hint:', error.hint);
     }
     throw error;
   }
@@ -80,6 +74,9 @@ export async function getShowById(id: string): Promise<Show> {
     return data;
   } catch (error) {
     console.error('Error in getShowById:', error);
+    if (error instanceof Error) {
+      console.error('Error message:', error.message);
+    }
     throw error;
   }
 }
@@ -99,6 +96,9 @@ export async function getAllShows(): Promise<Show[]> {
     return data || [];
   } catch (error) {
     console.error('Error in getAllShows:', error);
+    if (error instanceof Error) {
+      console.error('Error message:', error.message);
+    }
     throw error;
   }
 }
@@ -124,6 +124,9 @@ export async function updateShow(id: string, show: Partial<Show>): Promise<Show>
     return data;
   } catch (error) {
     console.error('Error in updateShow:', error);
+    if (error instanceof Error) {
+      console.error('Error message:', error.message);
+    }
     throw error;
   }
 }
@@ -141,6 +144,9 @@ export async function deleteShow(id: string): Promise<void> {
     }
   } catch (error) {
     console.error('Error in deleteShow:', error);
+    if (error instanceof Error) {
+      console.error('Error message:', error.message);
+    }
     throw error;
   }
 }

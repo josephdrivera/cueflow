@@ -1,15 +1,14 @@
 "use client"
 
 import * as React from "react"
-import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { Clock, Edit2, Plus, Settings, X, ChevronDown, ChevronUp, Trash2, GripVertical, ArrowUp, ArrowDown } from 'lucide-react'
+import { Clock, Edit2, Plus, Settings, Trash2, GripVertical } from 'lucide-react'
 import { ThemeToggle } from "./ThemeToggle"
 import { CueModal } from './CueModal';
-import { Cue, NewCue } from "@/types/cue";
-import { insertCueBetween, getAllCues, updateCue, createCue, deleteCue, moveCueUp, moveCueDown } from "@/services/cueService";
+import { Cue } from "@/types/cue";
+import { getAllCues, updateCue, createCue, deleteCue } from "@/services/cueService";
 import { Show, createShow, getAllShows } from "@/services/showService";
 import { cn } from "@/lib/utils";
-import { generateCueNumberBetween, validateCueNumber } from '@/utils/cueNumbering';
+import { validateCueNumber, generateCueNumberBetween, ensureUniqueCueNumber } from '@/utils/cueNumbering';
 import { useSettings } from '@/contexts/SettingsContext';
 import Link from 'next/link';
 import {
@@ -31,33 +30,25 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { supabase } from "@/lib/supabase";
 
-export default function CueSheetEditor() {
+const CueSheetEditor = () => {
   const [cues, setCues] = React.useState<Cue[]>([]);
   const [show, setShow] = React.useState<Show | null>(null);
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [selectedCue, setSelectedCue] = React.useState<Cue | undefined>();
   const [modalMode, setModalMode] = React.useState<'add' | 'edit'>('add');
-  const [insertPosition, setInsertPosition] = React.useState<{
-    previousId: string | null;
-    nextId: string | null;
-  } | null>(null);
-  const [insertMenuOpen, setInsertMenuOpen] = React.useState<string | null>(null);
-  const [isLoading, setIsLoading] = React.useState(true);
   const [currentIndex, setCurrentIndex] = React.useState<number | undefined>();
   const { settings } = useSettings();
-  const tableRef = React.createRef<HTMLTableElement>();
+  const tableRef = React.useRef<HTMLTableElement>(null);
 
   // Load or create show and its cues when component mounts
   React.useEffect(() => {
     const loadShowAndCues = async () => {
       try {
-        // Try to get all shows first
         const shows = await getAllShows();
         console.log('Existing shows:', shows);
 
         let currentShow: Show;
         if (shows.length === 0) {
-          // Create a default show if none exist
           console.log('No shows found, creating default show');
           currentShow = await createShow({ 
             title: "Default Show",
@@ -65,33 +56,22 @@ export default function CueSheetEditor() {
           });
           console.log('Created new show:', currentShow);
         } else {
-          // Use the first show
           currentShow = shows[0];
           console.log('Using existing show:', currentShow);
         }
         
         setShow(currentShow);
 
-        // Now load the cues for this show
         try {
           const loadedCues = await getAllCues(currentShow.id);
           console.log('Loaded cues:', loadedCues);
           setCues(loadedCues);
-        } catch (error: any) {
+        } catch (error) {
           console.error('Error loading cues:', error);
-          // Don't throw here, we can still use the app without cues
           setCues([]);
         }
-      } catch (error: any) {
+      } catch (error) {
         console.error('Error in loadShowAndCues:', error);
-        if (error.message) {
-          console.error('Error details:', error.message);
-        }
-        if (error.details) {
-          console.error('Additional details:', error.details);
-        }
-      } finally {
-        setIsLoading(false);
       }
     };
 
@@ -150,6 +130,10 @@ export default function CueSheetEditor() {
         // If it's between two cues
         newCueNumber = generateCueNumberBetween(prevCue.cue_number, nextCue.cue_number);
       }
+
+      // Ensure the generated cue number is unique
+      const existingCueNumbers = cues.map(cue => cue.cue_number);
+      newCueNumber = ensureUniqueCueNumber(newCueNumber, existingCueNumbers);
 
       if (!validateCueNumber(newCueNumber)) {
         throw new Error(`Generated invalid cue number: ${newCueNumber}`);
@@ -251,16 +235,7 @@ export default function CueSheetEditor() {
       ...cue,
       display_id: cue.cue_number,
     });
-    setInsertPosition(null);
     setIsModalOpen(true);
-  };
-
-  const handleInsertCue = (previousId: string | null, nextId: string | null) => {
-    setModalMode('add');
-    setSelectedCue(undefined);
-    setInsertPosition({ previousId, nextId });
-    setIsModalOpen(true);
-    setInsertMenuOpen(null);
   };
 
   const handleDeleteCue = async (id: string) => {
@@ -276,71 +251,7 @@ export default function CueSheetEditor() {
     }
   };
 
-  const handleMoveCueUp = async (index: number) => {
-    if (index <= 0) return; // Can't move first item up
-    try {
-      const currentCue = cues[index];
-      const previousCue = cues[index - 1];
-      
-      if (!currentCue || !previousCue) {
-        console.error('Invalid cues for moving:', { currentCue, previousCue });
-        return;
-      }
-
-      console.log('Moving cues:', { currentCue, previousCue });
-      const [updatedCurrent, updatedPrevious] = await moveCueUp(currentCue, previousCue);
-      
-      // Update the cues array while maintaining order
-      setCues(prevCues => {
-        const newCues = [...prevCues];
-        const currentIndex = newCues.findIndex(c => c.id === currentCue.id);
-        const previousIndex = newCues.findIndex(c => c.id === previousCue.id);
-        
-        if (currentIndex !== -1 && previousIndex !== -1) {
-          newCues[currentIndex] = updatedPrevious;
-          newCues[previousIndex] = updatedCurrent;
-          return newCues.sort((a, b) => a.cue_number.localeCompare(b.cue_number));
-        }
-        return prevCues;
-      });
-    } catch (error) {
-      console.error('Error moving cue up:', error);
-    }
-  };
-
-  const handleMoveCueDown = async (index: number) => {
-    if (index >= cues.length - 1) return; // Can't move last item down
-    try {
-      const currentCue = cues[index];
-      const nextCue = cues[index + 1];
-      
-      if (!currentCue || !nextCue) {
-        console.error('Invalid cues for moving:', { currentCue, nextCue });
-        return;
-      }
-
-      console.log('Moving cues:', { currentCue, nextCue });
-      const [updatedNext, updatedCurrent] = await moveCueDown(currentCue, nextCue);
-      
-      // Update the cues array while maintaining order
-      setCues(prevCues => {
-        const newCues = [...prevCues];
-        const currentIndex = newCues.findIndex(c => c.id === currentCue.id);
-        const nextIndex = newCues.findIndex(c => c.id === nextCue.id);
-        
-        if (currentIndex !== -1 && nextIndex !== -1) {
-          newCues[currentIndex] = updatedNext;
-          newCues[nextIndex] = updatedCurrent;
-          return newCues.sort((a, b) => a.cue_number.localeCompare(b.cue_number));
-        }
-        return prevCues;
-      });
-    } catch (error) {
-      console.error('Error moving cue down:', error);
-    }
-  };
-
-  const handleSubmitCue = async (cueData: Cue | Omit<NewCue, 'cue_number'>) => {
+  const handleSubmitCue = async (cueData: Cue | Omit<Cue, 'cue_number'>) => {
     try {
       if (!show) {
         console.error('No show selected');
@@ -366,7 +277,7 @@ export default function CueSheetEditor() {
           ...cueData,
           show_id: show.id,
           cue_number: cueData.display_id,
-        } as NewCue);
+        });
 
         setCues(prevCues => [...prevCues, newCue].sort((a, b) => 
           a.cue_number.localeCompare(b.cue_number)
@@ -375,7 +286,6 @@ export default function CueSheetEditor() {
 
       setIsModalOpen(false);
       setSelectedCue(undefined);
-      setInsertPosition(null);
       setCurrentIndex(undefined);
     } catch (error: any) {
       console.error('Error saving cue:', error);
@@ -384,6 +294,28 @@ export default function CueSheetEditor() {
       }
     }
   };
+
+  // Calculate totals
+  const calculateTotals = React.useCallback(() => {
+    const totalCues = cues.length;
+    const totalRunTime = cues.reduce((total, cue) => {
+      // Convert run_time (expected format: "MM:SS") to seconds
+      const [minutes, seconds] = (cue.run_time || "0:00").split(":").map(Number);
+      return total + (minutes * 60 + seconds);
+    }, 0);
+
+    // Convert total seconds back to MM:SS format
+    const totalMinutes = Math.floor(totalRunTime / 60);
+    const totalSeconds = totalRunTime % 60;
+    const formattedTotalTime = `${totalMinutes}:${totalSeconds.toString().padStart(2, '0')}`;
+
+    return {
+      totalCues,
+      formattedTotalTime
+    };
+  }, [cues]);
+
+  const totals = React.useMemo(() => calculateTotals(), [calculateTotals]);
 
   // Sortable cue row component
   function SortableCueRow({ cue, index, onEdit, onDelete }: { 
@@ -534,6 +466,17 @@ export default function CueSheetEditor() {
               </table>
             </DndContext>
           </div>
+          {/* Totals Footer */}
+          <div className="p-4 mt-4 bg-white rounded-lg border border-gray-200 dark:border-gray-800 dark:bg-gray-900">
+            <div className="flex justify-between items-center">
+              <div className="text-gray-600 dark:text-gray-400">
+                Total Cues: <span className="font-medium text-gray-900 dark:text-gray-300">{totals.totalCues}</span>
+              </div>
+              <div className="text-gray-600 dark:text-gray-400">
+                Total Running Time: <span className="font-medium text-gray-900 dark:text-gray-300">{totals.formattedTotalTime}</span>
+              </div>
+            </div>
+          </div>
         </div>
       </main>
       
@@ -542,7 +485,7 @@ export default function CueSheetEditor() {
         onClose={() => {
           setIsModalOpen(false);
           setSelectedCue(undefined);
-          setInsertPosition(null);
+          setCurrentIndex(undefined);
         }}
         onSubmit={handleSubmitCue}
         initialData={selectedCue}
@@ -553,4 +496,6 @@ export default function CueSheetEditor() {
       />
     </div>
   );
-}
+};
+
+export default CueSheetEditor;

@@ -19,9 +19,9 @@ export async function getAllCues(showId: string): Promise<Cue[]> {
     }
 
     return data || [];
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error in getAllCues:', error);
-    if (error.message) {
+    if (error instanceof Error) {
       console.error('Error message:', error.message);
     }
     throw error;
@@ -80,9 +80,9 @@ export async function createCue(cue: NewCue): Promise<Cue> {
     }
 
     return data;
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error in createCue:', error);
-    if (error.message) {
+    if (error instanceof Error) {
       console.error('Error message:', error.message);
     }
     if (error.details) {
@@ -133,9 +133,9 @@ export async function updateCue(id: string, cue: Partial<Cue>): Promise<Cue> {
     }
 
     return data;
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error updating cue:', error);
-    if (error.message) {
+    if (error instanceof Error) {
       console.error('Error message:', error.message);
     }
     throw error;
@@ -144,18 +144,63 @@ export async function updateCue(id: string, cue: Partial<Cue>): Promise<Cue> {
 
 export async function deleteCue(id: string): Promise<void> {
   try {
-    const { error } = await supabase
+    // First, get all cues that reference this cue as their previous_cue or next_cue
+    const [{ data: previousReferences, error: prevError }, { data: nextReferences, error: nextError }] = await Promise.all([
+      supabase
+        .from(TABLE_NAME)
+        .select('id')
+        .eq('previous_cue_id', id),
+      supabase
+        .from(TABLE_NAME)
+        .select('id')
+        .eq('next_cue_id', id)
+    ]);
+
+    if (prevError) throw prevError;
+    if (nextError) throw nextError;
+
+    // Update all references in parallel
+    const updatePromises = [];
+
+    if (previousReferences?.length > 0) {
+      updatePromises.push(
+        supabase
+          .from(TABLE_NAME)
+          .update({ previous_cue_id: null })
+          .eq('previous_cue_id', id)
+      );
+    }
+
+    if (nextReferences?.length > 0) {
+      updatePromises.push(
+        supabase
+          .from(TABLE_NAME)
+          .update({ next_cue_id: null })
+          .eq('next_cue_id', id)
+      );
+    }
+
+    if (updatePromises.length > 0) {
+      const results = await Promise.all(updatePromises);
+      const updateError = results.find(r => r.error);
+      if (updateError) {
+        throw updateError.error;
+      }
+    }
+
+    // Now we can safely delete the cue
+    const { error: deleteError } = await supabase
       .from(TABLE_NAME)
       .delete()
       .eq('id', id);
 
-    if (error) {
-      console.error('Error deleting cue:', error);
-      throw error;
+    if (deleteError) {
+      console.error('Error deleting cue:', deleteError);
+      throw deleteError;
     }
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error in deleteCue:', error);
-    if (error.message) {
+    if (error instanceof Error) {
       console.error('Error message:', error.message);
     }
     throw error;
@@ -235,6 +280,9 @@ export async function checkDuplicateCueNumber(showId: string, cueNumber: string,
     return data && data.length > 0;
   } catch (error) {
     console.error('Error checking duplicate cue number:', error);
+    if (error instanceof Error) {
+      console.error('Error message:', error.message);
+    }
     throw error;
   }
 }
@@ -279,6 +327,9 @@ export async function moveCueUp(cue: Cue, previousCue: Cue): Promise<[Cue, Cue]>
     return [firstUpdate, secondUpdate];
   } catch (error) {
     console.error('Error in moveCueUp:', error);
+    if (error instanceof Error) {
+      console.error('Error message:', error.message);
+    }
     throw error;
   }
 }
@@ -290,6 +341,9 @@ export async function moveCueDown(cue: Cue, nextCue: Cue): Promise<[Cue, Cue]> {
     return moveCueUp(nextCue, cue);
   } catch (error) {
     console.error('Error in moveCueDown:', error);
+    if (error instanceof Error) {
+      console.error('Error message:', error.message);
+    }
     throw error;
   }
 }
