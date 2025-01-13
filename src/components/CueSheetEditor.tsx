@@ -1,12 +1,12 @@
 "use client"
 
 import * as React from "react"
-import { Clock, Edit2, Plus, Settings, Trash2, GripVertical } from 'lucide-react'
+import { Clock, Edit2, Plus, Settings, Settings2, Trash2, GripVertical, Check, X } from 'lucide-react'
 import { ThemeToggle } from "./ThemeToggle"
 import { CueModal } from './CueModal';
 import { Cue } from "@/types/cue";
 import { getAllCues, updateCue, createCue, deleteCue } from "@/services/cueService";
-import { Show, createShow, getAllShows } from "@/services/showService";
+import { Show, createShow, getAllShows, updateShow } from "@/services/showService";
 import { cn } from "@/lib/utils";
 import { validateCueNumber, generateCueNumberBetween, ensureUniqueCueNumber } from '@/utils/cueNumbering';
 import { useSettings } from '@/contexts/SettingsContext';
@@ -37,6 +37,8 @@ const CueSheetEditor = () => {
   const [selectedCue, setSelectedCue] = React.useState<Cue | undefined>();
   const [modalMode, setModalMode] = React.useState<'add' | 'edit'>('add');
   const [currentIndex, setCurrentIndex] = React.useState<number | undefined>();
+  const [isEditingTitle, setIsEditingTitle] = React.useState(false);
+  const [editedTitle, setEditedTitle] = React.useState("");
   const { settings } = useSettings();
   const tableRef = React.useRef<HTMLTableElement>(null);
 
@@ -295,6 +297,26 @@ const CueSheetEditor = () => {
     }
   };
 
+  // Add this function to handle show title updates
+  const handleUpdateShowTitle = async () => {
+    if (!show || !editedTitle.trim()) return;
+    
+    try {
+      const updatedShow = await updateShow(show.id, { title: editedTitle.trim() });
+      setShow(updatedShow);
+      setIsEditingTitle(false);
+    } catch (error) {
+      console.error('Error updating show title:', error);
+    }
+  };
+
+  // Add this function to handle editing mode
+  const startEditingTitle = () => {
+    if (!show) return;
+    setEditedTitle(show.title);
+    setIsEditingTitle(true);
+  };
+
   // Calculate totals
   const calculateTotals = React.useCallback(() => {
     const totalCues = cues.length;
@@ -381,20 +403,53 @@ const CueSheetEditor = () => {
   return (
     <div className="flex flex-col h-screen bg-white dark:bg-gray-900">
       <header className="flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-800">
-        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">CueFlow: {show?.title}</h1>
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-4">
+          {isEditingTitle ? (
+            <div className="flex items-center space-x-2">
+              <input
+                type="text"
+                value={editedTitle}
+                onChange={(e) => setEditedTitle(e.target.value)}
+                className="px-2 py-1 border rounded dark:bg-gray-800 dark:border-gray-700"
+                autoFocus
+              />
+              <button
+                onClick={handleUpdateShowTitle}
+                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full"
+              >
+                <Check className="w-5 h-5 text-green-500" />
+              </button>
+              <button
+                onClick={() => setIsEditingTitle(false)}
+                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full"
+              >
+                <X className="w-5 h-5 text-red-500" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center space-x-2">
+              <h1 className="text-2xl font-bold">{show?.title || "Loading..."}</h1>
+              <button
+                onClick={startEditingTitle}
+                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full"
+              >
+                <Edit2 className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+        </div>
+        <div className="flex items-center space-x-4">
+          <Link
+            href="/settings"
+            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
+          >
+            <Settings2 className="w-5 h-5" />
+          </Link>
           <ThemeToggle />
           <button className="inline-flex items-center px-4 py-2 rounded-md border border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800">
             <Clock className="mr-2 w-4 h-4" />
             Live Mode
           </button>
-          <Link 
-            href="/settings"
-            className="inline-flex items-center px-4 py-2 rounded-md border border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800"
-          >
-            <Settings className="mr-2 w-4 h-4" />
-            Settings
-          </Link>
         </div>
       </header>
       <main className="flex overflow-hidden flex-1">
@@ -474,6 +529,19 @@ const CueSheetEditor = () => {
               </div>
               <div className="text-gray-600 dark:text-gray-400">
                 Total Running Time: <span className="font-medium text-gray-900 dark:text-gray-300">{totals.formattedTotalTime}</span>
+              </div>
+              <div className="text-gray-600 dark:text-gray-400">
+                Current Time: <span className="font-medium text-gray-900 dark:text-gray-300">
+                  {new Date().toLocaleDateString('en-US', { 
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                  })}
+                </span>
               </div>
             </div>
           </div>
