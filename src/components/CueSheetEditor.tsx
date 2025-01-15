@@ -380,7 +380,7 @@ const CueSheetEditor = () => {
         // It's a new cue
         const newCue = await createCue({
           ...cueData,
-          day_cue_list_id: selectedCueList.id,
+          cue_list_id: selectedCueList.id,
           cue_number: cueData.cue_number || 'A001', 
           start_time: cueData.start_time || '00:00:00',
           run_time: cueData.run_time || '00:00:00',

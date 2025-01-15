@@ -114,7 +114,10 @@ export function TimeInput({ value, onChange, label, id }: TimeInputProps) {
     h = hour12.toString().padStart(2, '0');
 
     // Ensure minute is padded
-    m = m.padStart(2, '0');
+    m = (m || '00').padStart(2, '0');
+    
+    // Ensure period is either AM or PM
+    p = (p || 'AM').toUpperCase();
     
     // Store display value in HH:MM AM/PM format
     const displayTime = `${h}:${m} ${p}`;
