@@ -144,11 +144,8 @@ const CueForm: React.FC<{ dayCueListId: string }> = ({ dayCueListId }) => {
       setIsSubmitting(true);
       setSubmitError('');
 
-      // Format the run time from minutes to HH:mm:ss
-      const runTimeMinutes = parseInt(cueData.runTime);
-      const hours = Math.floor(runTimeMinutes / 60);
-      const minutes = runTimeMinutes % 60;
-      const formattedRunTime = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
+      // The run time is already in HH:mm format, just need to add seconds
+      const formattedRunTime = formatTimeForDatabase(cueData.runTime);
 
       const newCue = {
         day_cue_list_id: dayCueListId,

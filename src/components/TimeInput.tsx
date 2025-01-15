@@ -108,26 +108,17 @@ export function TimeInput({ value, onChange, label, id }: TimeInputProps) {
     }
 
     // Ensure hour is in 12-hour format for display (01-12)
-    let hour12 = parseInt(h);
+    let hour12 = parseInt(h || '12');
     if (hour12 === 0) hour12 = 12;
     if (hour12 > 12) hour12 = hour12 % 12 || 12;
     h = hour12.toString().padStart(2, '0');
 
-    // Convert to 24-hour format for the actual value
-    let hour24 = hour12;
-    if (p === 'PM' && hour12 !== 12) hour24 += 12;
-    if (p === 'AM' && hour12 === 12) hour24 = 0;
-    const hour24Str = hour24.toString().padStart(2, '0');
-
     // Ensure minute is padded
     m = m.padStart(2, '0');
-
-    // Store display value for the input field
-    const displayTime = `${h}:${m} ${p}`;
     
-    // Return in HH:MM 24-hour format
-    const formattedTime = `${hour24Str}:${m}`;
-    onChange(formattedTime);
+    // Store display value in HH:MM AM/PM format
+    const displayTime = `${h}:${m} ${p}`;
+    onChange(displayTime);
   };
 
   return (
