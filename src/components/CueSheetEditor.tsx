@@ -381,7 +381,7 @@ const CueSheetEditor = () => {
         const newCue = await createCue({
           ...cueData,
           day_cue_list_id: selectedCueList.id,
-          cue_number: cueData.cue_number || '1',
+          cue_number: cueData.cue_number || 'A001', 
           start_time: cueData.start_time || '00:00:00',
           run_time: cueData.run_time || '00:00:00',
           end_time: cueData.end_time || '00:00:00',
@@ -400,6 +400,8 @@ const CueSheetEditor = () => {
       if (error.message) {
         console.error('Error details:', error.message);
       }
+      // Show error to user
+      alert(error instanceof Error ? error.message : 'An error occurred while saving the cue');
     }
   };
 

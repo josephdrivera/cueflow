@@ -4,6 +4,7 @@ export interface Cue {
   updated_at?: string;
   day_cue_list_id: string; // Reference to the day's cue list
   cue_number: string;
+  display_id: string;   // Display version of cue number
   start_time: string;  // Required time field
   run_time: string;    // Required time field
   end_time: string;    // Required time field

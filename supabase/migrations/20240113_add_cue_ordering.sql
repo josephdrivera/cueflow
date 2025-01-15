@@ -5,15 +5,23 @@ add column if not exists next_cue_id uuid references public.cues(id) on delete s
 
 -- Add constraint to ensure a cue can't reference itself
 alter table public.cues
-add constraint if not exists cue_self_reference_check 
+drop constraint if exists cue_self_reference_check;
+
+alter table public.cues
+add constraint cue_self_reference_check 
 check (id != previous_cue_id and id != next_cue_id);
 
 -- Add constraint to ensure proper cue number format
 alter table public.cues
-add constraint if not exists cue_number_format_check 
-check (cue_number ~ '^[A-Z]\d{3}[a-z]?$');
+drop constraint if exists cue_number_format;
+
+alter table public.cues
+add constraint cue_number_format 
+check (cue_number ~ '^[A-Z][0-9]{3}[a-z]?$');
 
 -- Update RLS policies to include new columns
+drop policy if exists "Users can update their own cues previous_cue_id and next_cue_id" on public.cues;
+
 create policy "Users can update their own cues previous_cue_id and next_cue_id"
 on public.cues
 for update using (

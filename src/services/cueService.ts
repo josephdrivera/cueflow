@@ -41,18 +41,43 @@ export async function getCueById(id: string): Promise<Cue> {
 
 export async function createCue(cue: NewCue): Promise<Cue> {
   try {
-    // Validate the cue number format
-    if (!validateCueNumber(cue.cue_number)) {
-      throw new Error(`Invalid cue number format: ${cue.cue_number}`);
+    // Validate and format the cue number
+    const cueNumber = cue.cue_number.toString().replace(/^([A-Z])([0-9]+)([a-z])?$/, (_, prefix, num, suffix) => {
+      // Ensure exactly 3 digits
+      const paddedNum = num.padStart(3, '0');
+      if (paddedNum.length > 3) {
+        throw new Error(`Invalid cue number format. Number part must be exactly 3 digits (e.g., A001, B123, C001a)`);
+      }
+      return `${prefix}${paddedNum}${suffix || ''}`;
+    });
+
+    // Validate the final formatted cue number
+    if (!validateCueNumber(cueNumber)) {
+      throw new Error(`Invalid cue number format: ${cueNumber}. Must be a letter followed by exactly 3 digits, with an optional lowercase letter (e.g., A001, B123, C001a)`);
+    }
+
+    // Format the display_id if provided, otherwise use cue_number
+    const displayId = cue.display_id ? cue.display_id.toString().replace(/^([A-Z])([0-9]+)([a-z])?$/, (_, prefix, num, suffix) => {
+      const paddedNum = num.padStart(3, '0');
+      if (paddedNum.length > 3) {
+        throw new Error(`Invalid display ID format. Number part must be exactly 3 digits (e.g., A001, B123, C001a)`);
+      }
+      return `${prefix}${paddedNum}${suffix || ''}`;
+    }) : cueNumber;
+
+    // Validate the display_id format
+    if (!validateCueNumber(displayId)) {
+      throw new Error(`Invalid display ID format: ${displayId}. Must be a letter followed by exactly 3 digits, with an optional lowercase letter (e.g., A001, B123, C001a)`);
     }
 
     // Prepare the new cue data exactly as per schema
     const newCue = {
-      day_cue_list_id: cue.cue_list_id, // Map to correct field name
-      cue_number: cue.cue_number,
-      start_time: cue.start_time || '00:00:00',  // Provide defaults for required fields
-      run_time: cue.run_time || '00:00:00',      
-      end_time: cue.end_time || '00:00:00',      
+      ...cue,
+      cue_number: cueNumber,
+      display_id: displayId,
+      start_time: cue.start_time || '00:00:00',
+      run_time: cue.run_time || '00:00:00',
+      end_time: cue.end_time || '00:00:00',
       activity: cue.activity ?? '',
       graphics: cue.graphics ?? '',
       video: cue.video ?? '',
@@ -72,6 +97,10 @@ export async function createCue(cue: NewCue): Promise<Cue> {
 
     if (error) {
       console.error('Supabase error creating cue:', error);
+      // Check if it's a connection error
+      if (!error.code && !error.message && !error.details) {
+        throw new Error('Connection error: Unable to reach the database. Please check your connection and try again.');
+      }
       throw new Error(`Database error: ${error.message}${error.details ? ` - ${error.details}` : ''}`);
     }
 
@@ -84,12 +113,6 @@ export async function createCue(cue: NewCue): Promise<Cue> {
     console.error('Error in createCue:', error);
     if (error instanceof Error) {
       console.error('Error message:', error.message);
-    }
-    if (error.details) {
-      console.error('Error details:', error.details);
-    }
-    if (error.hint) {
-      console.error('Error hint:', error.hint);
     }
     throw error;
   }
