@@ -276,17 +276,12 @@ export async function insertCueBetween(
   return newCue;
 }
 
-export async function checkDuplicateCueNumber(showId: string, cueNumber: string, excludeId?: string): Promise<boolean> {
+export async function checkDuplicateCueNumber(day_cue_list_id: string, cueNumber: string, excludeId?: string): Promise<boolean> {
   try {
-    if (!showId || !cueNumber) {
-      console.error('Missing required parameters:', { showId, cueNumber });
-      return false;
-    }
-
     let query = supabase
       .from(TABLE_NAME)
       .select('id')
-      .eq('day_cue_list_id', showId)
+      .eq('day_cue_list_id', day_cue_list_id)
       .eq('cue_number', cueNumber);
     
     if (excludeId) {
@@ -295,17 +290,10 @@ export async function checkDuplicateCueNumber(showId: string, cueNumber: string,
 
     const { data, error } = await query;
 
-    if (error) {
-      console.error('Supabase error checking duplicate cue number:', error);
-      throw error;
-    }
-
-    return data && data.length > 0;
+    if (error) throw error;
+    return data.length > 0;
   } catch (error) {
     console.error('Error checking duplicate cue number:', error);
-    if (error instanceof Error) {
-      console.error('Error message:', error.message);
-    }
     throw error;
   }
 }

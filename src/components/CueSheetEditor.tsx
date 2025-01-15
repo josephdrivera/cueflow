@@ -403,10 +403,17 @@ const CueSheetEditor = () => {
         );
       } else {
         // It's a new cue
+        const existingCueNumbers = await supabase
+          .from('cues')
+          .select('cue_number')
+          .eq('day_cue_list_id', selectedCueList.id);
+
+        const newCueNumber = ensureUniqueCueNumber(cueData.cue_number || 'A001', existingCueNumbers.data.map(cue => cue.cue_number));
+
         const newCue = await createCue({
           ...cueData,
           day_cue_list_id: selectedCueList.id,
-          cue_number: cueData.cue_number || 'A001', 
+          cue_number: newCueNumber, 
           start_time: cueData.start_time || '00:00:00',
           run_time: cueData.run_time || '00:00:00',
           end_time: cueData.end_time || '00:00:00',
