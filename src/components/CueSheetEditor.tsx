@@ -163,7 +163,7 @@ const CueSheetEditor = () => {
             const { data: cueData, error: cuesError } = await supabase
               .from('cues')
               .select('*')
-              .eq('cue_list_id', lists[0].id)
+              .eq('day_cue_list_id', lists[0].id)
               .order('cue_number');
 
             if (cuesError) throw cuesError;
@@ -185,6 +185,31 @@ const CueSheetEditor = () => {
       tableRef.current.className = cn("min-w-full", settings.showBorders && "border-collapse [&_td]:border-r [&_th]:border-r dark:[&_td]:border-gray-800 dark:[&_th]:border-gray-800 [&_td]:border-gray-200 [&_th]:border-gray-200 [&_tr_td:last-child]:border-0 [&_tr_th:last-child]:border-0")
     }
   }, [settings.showBorders]);
+
+  // Load cues when selected cue list changes
+  useEffect(() => {
+    const loadCuesForList = async () => {
+      if (!selectedCueList) {
+        setCues([]);
+        return;
+      }
+
+      try {
+        const { data: cueData, error: cuesError } = await supabase
+          .from('cues')
+          .select('*')
+          .eq('day_cue_list_id', selectedCueList.id)
+          .order('cue_number');
+
+        if (cuesError) throw cuesError;
+        setCues(cueData || []);
+      } catch (error) {
+        console.error('Error loading cues for list:', error);
+      }
+    };
+
+    loadCuesForList();
+  }, [selectedCueList]);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -280,7 +305,7 @@ const CueSheetEditor = () => {
       const { data: refreshedCues, error: refreshError } = await supabase
         .from('cues')
         .select('*')
-        .eq('cue_list_id', selectedCueList.id)
+        .eq('day_cue_list_id', selectedCueList.id)
         .order('cue_number');
 
       if (refreshError) {
@@ -302,7 +327,7 @@ const CueSheetEditor = () => {
         const { data: refreshedCues } = await supabase
           .from('cues')
           .select('*')
-          .eq('cue_list_id', selectedCueList?.id)
+          .eq('day_cue_list_id', selectedCueList?.id)
           .order('cue_number');
         if (refreshedCues) {
           setCues(refreshedCues);
@@ -380,7 +405,7 @@ const CueSheetEditor = () => {
         // It's a new cue
         const newCue = await createCue({
           ...cueData,
-          cue_list_id: selectedCueList.id,
+          day_cue_list_id: selectedCueList.id,
           cue_number: cueData.cue_number || 'A001', 
           start_time: cueData.start_time || '00:00:00',
           run_time: cueData.run_time || '00:00:00',

@@ -10,7 +10,7 @@ export async function getAllCues(showId: string): Promise<Cue[]> {
     const { data, error } = await supabase
       .from(TABLE_NAME)
       .select('*')
-      .eq('show_id', showId)
+      .eq('day_cue_list_id', showId)
       .order('cue_number');
 
     if (error) {
@@ -138,7 +138,7 @@ export async function updateCue(id: string, cue: Partial<Cue>): Promise<Cue> {
         audio: cue.audio,
         lighting: cue.lighting,
         notes: cue.notes,
-        show_id: cue.show_id,
+        day_cue_list_id: cue.day_cue_list_id,
         previous_cue_id: cue.previous_cue_id,
         next_cue_id: cue.next_cue_id,
       })
@@ -261,7 +261,7 @@ export async function insertCueBetween(
   // Create the new cue
   const newCue = await createCue({
     ...cue,
-    show_id: showId,
+    day_cue_list_id: showId,
     cue_number: newCueNumber,
     previous_cue_id: previousCueId,
     next_cue_id: nextCueId,
@@ -286,7 +286,7 @@ export async function checkDuplicateCueNumber(showId: string, cueNumber: string,
     let query = supabase
       .from(TABLE_NAME)
       .select('id')
-      .eq('show_id', showId)
+      .eq('day_cue_list_id', showId)
       .eq('cue_number', cueNumber);
     
     if (excludeId) {
