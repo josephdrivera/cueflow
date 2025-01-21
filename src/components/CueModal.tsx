@@ -247,14 +247,14 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode, cues, c
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-black/50" />
           <Dialog.Content className="fixed inset-0 flex items-center justify-center p-4">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto">
+            <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto">
               <div className="flex justify-between items-center mb-6">
-                <Dialog.Title className="text-xl font-semibold">
+                <Dialog.Title className="text-xl font-semibold text-gray-900 dark:text-white">
                   {mode === 'add' ? 'Add New Cue' : 'Edit Cue'}
                 </Dialog.Title>
                 <button
                   onClick={onClose}
-                  className="text-gray-400 hover:text-gray-500"
+                  className="text-gray-400 hover:text-gray-500 dark:text-gray-500 dark:hover:text-gray-400"
                 >
                   <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -265,7 +265,7 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode, cues, c
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="grid grid-cols-2 gap-6">
                   <div>
-                    <label htmlFor="display_id" className="block text-sm font-medium mb-1">
+                    <label htmlFor="display_id" className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
                       Cue ID
                     </label>
                     <input
@@ -274,13 +274,13 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode, cues, c
                       name="display_id"
                       value={formData.display_id || ''}
                       onChange={(e) => handleInputChange('display_id', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 dark:placeholder-gray-500"
                       placeholder="Enter Cue ID"
                     />
                   </div>
 
                   <div>
-                    <label htmlFor="run_time" className="block text-sm font-medium mb-1">
+                    <label htmlFor="run_time" className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
                       Run Time
                     </label>
                     <RunTimeInput
@@ -309,7 +309,7 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode, cues, c
                 </div>
 
                 <div>
-                  <label htmlFor="activity" className="block text-sm font-medium mb-1">
+                  <label htmlFor="activity" className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
                     Activity
                   </label>
                   <input
@@ -318,13 +318,13 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode, cues, c
                     name="activity"
                     value={formData.activity || ''}
                     onChange={(e) => handleInputChange('activity', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 dark:placeholder-gray-500"
                     placeholder="Enter Activity"
                   />
                 </div>
 
                 <div>
-                  <label htmlFor="graphics" className="block text-sm font-medium mb-1">
+                  <label htmlFor="graphics" className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
                     Graphics
                   </label>
                   <input
@@ -333,13 +333,13 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode, cues, c
                     name="graphics"
                     value={formData.graphics || ''}
                     onChange={(e) => handleInputChange('graphics', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 dark:placeholder-gray-500"
                     placeholder="Enter Graphics"
                   />
                 </div>
 
                 <div>
-                  <label htmlFor="video" className="block text-sm font-medium mb-1">
+                  <label htmlFor="video" className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
                     Video
                   </label>
                   <input
@@ -348,13 +348,13 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode, cues, c
                     name="video"
                     value={formData.video || ''}
                     onChange={(e) => handleInputChange('video', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 dark:placeholder-gray-500"
                     placeholder="Enter Video"
                   />
                 </div>
 
                 <div>
-                  <label htmlFor="audio" className="block text-sm font-medium mb-1">
+                  <label htmlFor="audio" className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
                     Audio
                   </label>
                   <input
@@ -363,13 +363,13 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode, cues, c
                     name="audio"
                     value={formData.audio || ''}
                     onChange={(e) => handleInputChange('audio', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 dark:placeholder-gray-500"
                     placeholder="Enter Audio"
                   />
                 </div>
 
                 <div>
-                  <label htmlFor="lighting" className="block text-sm font-medium mb-1">
+                  <label htmlFor="lighting" className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
                     Lighting
                   </label>
                   <input
@@ -378,13 +378,13 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode, cues, c
                     name="lighting"
                     value={formData.lighting || ''}
                     onChange={(e) => handleInputChange('lighting', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 dark:placeholder-gray-500"
                     placeholder="Enter Lighting"
                   />
                 </div>
 
                 <div>
-                  <label htmlFor="notes" className="block text-sm font-medium mb-1">
+                  <label htmlFor="notes" className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
                     Notes
                   </label>
                   <textarea
@@ -392,14 +392,14 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode, cues, c
                     name="notes"
                     value={formData.notes || ''}
                     onChange={(e) => handleInputChange('notes', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 min-h-[100px]"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 dark:placeholder-gray-500 min-h-[100px]"
                     placeholder="Enter Notes"
                   />
                 </div>
 
                 <button
                   type="submit"
-                  className="w-full bg-black text-white py-3 px-4 rounded-md hover:bg-gray-800 transition-colors"
+                  className="w-full bg-blue-500 dark:bg-blue-600 text-white py-3 px-4 rounded-md hover:bg-blue-600 dark:hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
                 >
                   Submit
                 </button>
@@ -412,8 +412,8 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode, cues, c
       <Dialog.Root open={showDuplicateDialog} onOpenChange={setShowDuplicateDialog}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-black/50" />
-          <Dialog.Content className="fixed top-1/2 left-1/2 p-6 w-full max-w-md bg-white rounded-lg shadow-lg -translate-x-1/2 -translate-y-1/2 dark:bg-gray-800">
-            <Dialog.Title className="mb-2 text-lg font-semibold">
+          <Dialog.Content className="fixed top-1/2 left-1/2 p-6 w-full max-w-md bg-white dark:bg-gray-900 rounded-lg shadow-lg -translate-x-1/2 -translate-y-1/2">
+            <Dialog.Title className="mb-2 text-lg font-semibold text-gray-900 dark:text-white">
               Duplicate Cue Number
             </Dialog.Title>
             <Dialog.Description className="mb-4 text-gray-600 dark:text-gray-300">

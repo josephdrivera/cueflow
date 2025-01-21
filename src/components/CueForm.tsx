@@ -12,27 +12,27 @@ import { createCue } from '@/services/cueService';
 const StyledTimePicker = styled(DesktopTimePicker)({
   width: '100%',
   '& .MuiInputBase-root': {
-    color: 'white',
-    backgroundColor: '#24272e',
-    border: '1px solid #2a2d35',
+    color: 'inherit',
+    backgroundColor: 'var(--background)',
+    border: '1px solid var(--border)',
     borderRadius: '0.375rem',
   },
   '& .MuiOutlinedInput-notchedOutline': {
     border: 'none',
   },
   '& .MuiIconButton-root': {
-    color: 'white',
+    color: 'inherit',
   },
   '& .MuiClock-root': {
-    backgroundColor: '#1e2128',
-    color: 'white',
+    backgroundColor: 'var(--background)',
+    color: 'var(--foreground)',
   },
   '& .MuiPickersPopper-root': {
-    backgroundColor: '#1e2128',
+    backgroundColor: 'var(--background)',
   },
   '& .MuiPaper-root': {
-    backgroundColor: '#1e2128',
-    color: 'white',
+    backgroundColor: 'var(--background)',
+    color: 'var(--foreground)',
   },
 });
 
