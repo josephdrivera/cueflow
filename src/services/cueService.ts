@@ -167,51 +167,18 @@ export async function updateCue(id: string, cue: Partial<Cue>): Promise<Cue> {
 
 export async function deleteCue(id: string): Promise<void> {
   try {
-    // First, get all cues that reference this cue as their previous_cue or next_cue
-    const [{ data: previousReferences, error: prevError }, { data: nextReferences, error: nextError }] = await Promise.all([
-      supabase
-        .from(TABLE_NAME)
-        .select('id')
-        .eq('previous_cue_id', id),
-      supabase
-        .from(TABLE_NAME)
-        .select('id')
-        .eq('next_cue_id', id)
-    ]);
+    console.log('Starting to delete cue with ID:', id);
 
-    if (prevError) throw prevError;
-    if (nextError) throw nextError;
+    // First, update any references to this cue to be null
+    const { error: updateError } = await supabase
+      .rpc('update_cue_references', { target_id: id });
 
-    // Update all references in parallel
-    const updatePromises = [];
-
-    if (previousReferences?.length > 0) {
-      updatePromises.push(
-        supabase
-          .from(TABLE_NAME)
-          .update({ previous_cue_id: null })
-          .eq('previous_cue_id', id)
-      );
+    if (updateError) {
+      console.error('Error updating references:', updateError);
+      throw updateError;
     }
 
-    if (nextReferences?.length > 0) {
-      updatePromises.push(
-        supabase
-          .from(TABLE_NAME)
-          .update({ next_cue_id: null })
-          .eq('next_cue_id', id)
-      );
-    }
-
-    if (updatePromises.length > 0) {
-      const results = await Promise.all(updatePromises);
-      const updateError = results.find(r => r.error);
-      if (updateError) {
-        throw updateError.error;
-      }
-    }
-
-    // Now we can safely delete the cue
+    // Delete the cue
     const { error: deleteError } = await supabase
       .from(TABLE_NAME)
       .delete()
@@ -221,6 +188,8 @@ export async function deleteCue(id: string): Promise<void> {
       console.error('Error deleting cue:', deleteError);
       throw deleteError;
     }
+
+    console.log('Successfully deleted cue');
   } catch (error) {
     console.error('Error in deleteCue:', error);
     if (error instanceof Error) {

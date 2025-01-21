@@ -366,14 +366,30 @@ const CueSheetEditor = () => {
   };
 
   const handleDeleteCue = async (id: string) => {
-    if (window.confirm('Are you sure you want to delete this cue?')) {
+    console.log('Delete button clicked for cue:', id);
+    const confirmDelete = window.confirm('Are you sure you want to delete this cue?');
+    console.log('User confirmed:', confirmDelete);
+    
+    if (confirmDelete) {
       try {
-        await deleteCue(id);
+        console.log('Attempting to delete cue with ID:', id);
+        // Try direct Supabase delete first
+        const { error } = await supabase
+          .from('cues')
+          .delete()
+          .eq('id', id);
+
+        if (error) {
+          console.error('Error deleting cue directly:', error);
+          throw error;
+        }
+
+        console.log('Successfully deleted cue from database');
         // Remove the cue from local state
         setCues(prevCues => prevCues.filter(cue => cue.id !== id));
       } catch (error) {
-        console.error('Error deleting cue:', error);
-        // You might want to show an error message to the user here
+        console.error('Error in handleDeleteCue:', error);
+        alert('Failed to delete cue. Please check console for details.');
       }
     }
   };
