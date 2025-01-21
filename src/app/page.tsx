@@ -1,5 +1,5 @@
-import CueSheetEditor from "@/components/CueSheetEditor";
+import { Dashboard } from "@/components/Dashboard";
 
 export default function Home() {
-  return <CueSheetEditor />;
+  return <Dashboard />;
 }
