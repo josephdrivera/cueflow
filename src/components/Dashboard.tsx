@@ -28,6 +28,19 @@ export function Dashboard() {
         setIsLoading(true);
         setError(null);
 
+        // Test connection first
+        const { error: testError } = await supabase
+          .from('shows')
+          .select('count')
+          .limit(1)
+          .single();
+
+        if (testError) {
+          console.error('Connection test failed:', testError);
+          throw new Error('Database connection failed. Please check your connection and try again.');
+        }
+
+        // Fetch shows data
         const { data: showsData, error: showsError } = await supabase
           .from('shows')
           .select('*')
@@ -35,7 +48,7 @@ export function Dashboard() {
 
         if (showsError) {
           console.error('Failed to fetch shows:', showsError);
-          throw new Error(showsError.message);
+          throw new Error(showsError.message || 'Failed to fetch shows data');
         }
 
         if (!showsData) {
@@ -44,6 +57,7 @@ export function Dashboard() {
           return;
         }
 
+        // Process each show to get cue counts
         const showsWithCounts = await Promise.all(
           showsData.map(async (show) => {
             try {
@@ -57,25 +71,13 @@ export function Dashboard() {
               }
 
               return {
-                id: show.id,
-                title: show.title || 'Untitled Show',
-                created_at: show.created_at,
-                description: show.description,
-                creator_id: show.creator_id,
-                is_template: show.is_template,
-                metadata: show.metadata,
+                ...show,
                 total_cues: count || 0
               };
             } catch (err) {
               console.error(`Error processing show ${show.id}:`, err);
               return {
-                id: show.id,
-                title: show.title || 'Untitled Show',
-                created_at: show.created_at,
-                description: show.description,
-                creator_id: show.creator_id,
-                is_template: show.is_template,
-                metadata: show.metadata,
+                ...show,
                 total_cues: 0
               };
             }
@@ -87,10 +89,8 @@ export function Dashboard() {
         console.error('Error in fetchShows:', err);
         if (err instanceof Error) {
           setError(err.message);
-        } else if (typeof err === 'object' && err !== null) {
-          setError(JSON.stringify(err, null, 2));
         } else {
-          setError('An unexpected error occurred while fetching shows');
+          setError('An unexpected error occurred while loading shows');
         }
       } finally {
         setIsLoading(false);
@@ -110,9 +110,9 @@ export function Dashboard() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex justify-center items-center min-h-screen">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+          <div className="mx-auto w-12 h-12 rounded-full border-b-2 border-blue-500 animate-spin"></div>
           <p className="mt-4 text-gray-500 dark:text-gray-400">Loading shows...</p>
         </div>
       </div>
@@ -121,16 +121,16 @@ export function Dashboard() {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center max-w-lg mx-auto">
-          <div className="text-red-500 text-xl mb-4">⚠️</div>
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="mx-auto max-w-lg text-center">
+          <div className="mb-4 text-xl text-red-500">⚠️</div>
+          <h3 className="mb-2 text-lg font-medium text-gray-900 dark:text-white">
             Error Loading Shows
           </h3>
-          <p className="text-sm text-gray-500 dark:text-gray-400 whitespace-pre-wrap">{error}</p>
+          <p className="text-sm text-gray-500 whitespace-pre-wrap dark:text-gray-400">{error}</p>
           <button
             onClick={() => window.location.reload()}
-            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+            className="px-4 py-2 mt-4 text-white bg-blue-500 rounded hover:bg-blue-600"
           >
             Try Again
           </button>
@@ -140,20 +140,20 @@ export function Dashboard() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">CueFlow Dashboard</h1>
+    <div className="container px-4 py-8 mx-auto">
+      <h1 className="mb-6 text-2xl font-bold text-gray-900 dark:text-white">CueFlow Dashboard</h1>
       
       <div className="relative mb-8">
         <input
           type="text"
           placeholder="Search shows..."
-          className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md leading-5 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+          className="py-2 pr-3 pl-10 w-full leading-5 placeholder-gray-500 text-gray-900 bg-white rounded-md border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
         />
-        <div className="absolute inset-y-0 left-3 flex items-center">
+        <div className="flex absolute inset-y-0 left-3 items-center">
           <svg
-            className="h-5 w-5 text-gray-400"
+            className="w-5 h-5 text-gray-400"
             xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 20 20"
             fill="currentColor"
@@ -171,20 +171,20 @@ export function Dashboard() {
         {filteredShows.map((show) => (
           <div
             key={show.id}
-            className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden"
+            className="overflow-hidden bg-white rounded-lg border border-gray-200 dark:bg-gray-800 dark:border-gray-700"
           >
             <div className="p-6">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+              <h2 className="mb-2 text-xl font-semibold text-gray-900 dark:text-white">
                 {show.title}
               </h2>
-              <div className="flex items-center text-sm text-gray-500 dark:text-gray-400 mb-4">
+              <div className="flex items-center mb-4 text-sm text-gray-500 dark:text-gray-400">
                 <span>{new Date(show.created_at).toLocaleDateString()}</span>
                 <span className="mx-2">•</span>
                 <span>{show.total_cues} cues</span>
               </div>
               <button
                 onClick={() => handleViewCueList(show.id)}
-                className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+                className="px-4 py-2 w-full text-white bg-blue-600 rounded-md transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
               >
                 View Cue List
               </button>
@@ -194,7 +194,7 @@ export function Dashboard() {
       </div>
 
       {filteredShows.length === 0 && (
-        <div className="text-center py-12">
+        <div className="py-12 text-center">
           <h3 className="text-lg font-medium text-gray-900 dark:text-white">
             No shows found
           </h3>

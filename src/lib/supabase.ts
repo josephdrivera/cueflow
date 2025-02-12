@@ -1,28 +1,22 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Log environment variables availability (but not their values)
-if (typeof window !== 'undefined') {
-  console.log('Environment check:', {
-    hasUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
-    hasAnonKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    environment: process.env.NODE_ENV,
-    isClient: true
-  });
-}
+// Check for required environment variables
+const requiredEnvVars = {
+  NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+};
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+// Validate environment variables
+Object.entries(requiredEnvVars).forEach(([name, value]) => {
+  if (!value) {
+    throw new Error(`Missing environment variable: ${name}`);
+  }
+});
 
-// Environment validation
-if (!supabaseUrl || !supabaseUrl.startsWith('https://')) {
-  throw new Error('Invalid or missing NEXT_PUBLIC_SUPABASE_URL. Must be a valid HTTPS URL.');
-}
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-if (!supabaseAnonKey || supabaseAnonKey.length < 20) {
-  throw new Error('Invalid or missing NEXT_PUBLIC_SUPABASE_ANON_KEY. Key appears to be malformed.');
-}
-
-// Create Supabase client with enhanced options
+// Create and configure Supabase client
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     autoRefreshToken: true,
@@ -33,8 +27,45 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     schema: 'public'
   },
   global: {
-    headers: {
-      'X-Client-Info': 'cueflow'
+    headers: { 'x-application-name': 'cueflow' }
+  }
+});
+
+// Handle auth state changes
+supabase.auth.onAuthStateChange((event, session) => {
+  if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
+    // Clear local storage on sign out
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('supabase.auth.token');
     }
   }
 });
+
+// Verify database connection
+async function verifyConnection() {
+  try {
+    const { error } = await supabase
+      .from('shows')
+      .select('count')
+      .limit(1)
+      .single();
+
+    if (error) {
+      console.error('Supabase connection error:', error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('Failed to connect to Supabase:', err);
+    return false;
+  }
+}
+
+// Initial connection verification
+verifyConnection().then(isConnected => {
+  if (!isConnected) {
+    console.error('Failed to establish initial connection to Supabase');
+  }
+});
+
+export default supabase;
