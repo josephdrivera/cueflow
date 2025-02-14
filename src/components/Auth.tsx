@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Button, TextField, Box, Typography, Alert } from '@mui/material';
+import { useRouter } from 'next/router';
 
 export function Auth() {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -27,6 +29,16 @@ export function Auth() {
       setError(error instanceof Error ? error.message : 'An error occurred');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      router.push('/');
+    } catch (error) {
+      console.error('Error signing out:', error);
     }
   };
 
@@ -63,6 +75,14 @@ export function Auth() {
         disabled={loading}
       >
         {loading ? 'Loading...' : 'Send magic link'}
+      </Button>
+
+      <Button
+        onClick={handleSignOut}
+        variant="contained"
+        color="error"
+      >
+        Sign Out
       </Button>
     </Box>
   );

@@ -100,27 +100,27 @@ export function CueList({ showId }: CueListProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900">
+    <div className="min-h-screen bg-white dark:bg-gray-900">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex justify-between items-center mb-8">
           <div className="flex items-center space-x-2">
-            <button className="px-4 py-2 text-gray-300 bg-gray-800 rounded-md hover:bg-gray-700">
+            <button className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700">
               day two [2025-01-14]
             </button>
           </div>
           <div className="flex items-center space-x-4">
             <button 
               onClick={() => setIsModalOpen(true)}
-              className="flex items-center px-4 py-2 text-gray-300 bg-gray-800 rounded-md hover:bg-gray-700"
+              className="flex items-center px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700"
             >
               <Plus className="w-5 h-5 mr-2" />
               Add Cue
             </button>
-            <button className="flex items-center px-4 py-2 text-gray-300 bg-gray-800 rounded-md hover:bg-gray-700">
+            <button className="flex items-center px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700">
               <Plus className="w-5 h-5 mr-2" />
               Add Cue List
             </button>
-            <button className="flex items-center px-4 py-2 text-gray-300 bg-gray-800 rounded-md hover:bg-gray-700">
+            <button className="flex items-center px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700">
               <Settings className="w-5 h-5 mr-2" />
               Settings
             </button>
@@ -128,12 +128,12 @@ export function CueList({ showId }: CueListProps) {
         </div>
 
         <DragDropContext onDragEnd={handleDragEnd}>
-          <div className="overflow-x-auto w-full bg-gray-800 rounded-lg">
+          <div className="overflow-x-auto w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow">
             <Droppable droppableId="cues" ignoreContainerClipping={false} isDropDisabled={false} isCombineEnabled={false}>
               {(provided) => (
-                <table className="min-w-full text-gray-300" {...provided.droppableProps} ref={provided.innerRef}>
+                <table className="min-w-full text-gray-700 dark:text-gray-300" {...provided.droppableProps} ref={provided.innerRef}>
                   <thead>
-                    <tr className="border-b border-gray-700">
+                    <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
                       <th className="px-4 py-3 text-left">Cue ID</th>
                       <th className="px-4 py-3 text-left">Start Time</th>
                       <th className="px-4 py-3 text-left">Run Time</th>
@@ -154,7 +154,7 @@ export function CueList({ showId }: CueListProps) {
                             ref={provided.innerRef}
                             {...provided.draggableProps}
                             {...provided.dragHandleProps}
-                            className="border-b border-gray-700 hover:bg-gray-700 cursor-move"
+                            className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-move"
                           >
                             <td className="px-4 py-3">{cue.cue_number}</td>
                             <td className="px-4 py-3">{cue.start_time}</td>
@@ -176,7 +176,7 @@ export function CueList({ showId }: CueListProps) {
               )}
             </Droppable>
 
-            <div className="flex justify-between px-4 py-3 border-t border-gray-700 text-gray-300">
+            <div className="flex justify-between px-4 py-3 border-t border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800">
               <div>Total Cues: {cues.length}</div>
               <div>Total Running Time: {totalRunningTime}</div>
               <div>Current Time: {new Date().toLocaleDateString()}</div>
