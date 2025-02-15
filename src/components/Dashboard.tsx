@@ -11,11 +11,12 @@ interface Show {
   title: string;
   created_at: string;
   description?: string;
-  creator_id?: string;
+  user_id?: string;
   is_template?: boolean;
   metadata?: any;
   total_cues: number;
   is_archived: boolean;
+  archived?: boolean;
 }
 
 interface CreateShowFormData {
@@ -28,6 +29,7 @@ interface CreateShowFormData {
 
 export function Dashboard() {
   const [shows, setShows] = React.useState<Show[]>([]);
+  const [invitedShows, setInvitedShows] = React.useState<Show[]>([]);
   const [searchQuery, setSearchQuery] = React.useState('');
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
@@ -45,74 +47,95 @@ export function Dashboard() {
 
   const fetchShows = async () => {
     try {
-      console.log('Fetching shows...');
-      setIsLoading(true);
       setError(null);
 
-      const { data: showsData, error: showsError } = await supabase
-        .from('shows')
-        .select('*')
-        .eq('is_archived', false)
-        .order('created_at', { ascending: false });
-
-      console.log('Raw shows data:', showsData);
-      console.log('Shows error:', showsError);
-
-      if (showsError) {
-        console.error('Failed to fetch shows:', showsError);
-        throw new Error(showsError.message || 'Failed to fetch shows data');
+      // Get current user
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError) {
+        console.error('Auth error:', userError);
+        throw userError;
       }
 
-      if (!showsData) {
-        console.log('No shows found');
-        setShows([]);
+      if (!user) {
+        router.push('/auth/login');
         return;
       }
 
-      // Process each show to get cue counts
-      const showsWithCounts = await Promise.all(
-        showsData.map(async (show) => {
-          try {
-            const { count, error: countError } = await supabase
-              .from('showflows')
-              .select('*', { count: 'exact', head: true })
-              .eq('show_id', show.id);
+      // Fetch personal shows
+      const { data: personalShows, error: showsError } = await supabase
+        .from('shows')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('is_archived', false)
+        .order('created_at', { ascending: false });
 
-            if (countError) {
-              console.error(`Count error for show ${show.id}:`, countError);
-            }
+      console.log('Personal shows query:', {
+        userId: user.id,
+        shows: personalShows,
+        error: showsError,
+        showCount: personalShows?.length || 0
+      });
 
-            return {
-              ...show,
-              total_cues: count || 0
-            };
-          } catch (err) {
-            console.error(`Error processing show ${show.id}:`, err);
-            return {
-              ...show,
-              total_cues: 0
-            };
-          }
-        })
-      );
-
-      console.log('Final shows with counts:', showsWithCounts);
-      setShows(showsWithCounts);
-    } catch (err) {
-      console.error('Error in fetchShows:', err);
-      if (err instanceof Error) {
-        setError(err.message);
+      if (showsError) {
+        console.error('Failed to fetch personal shows:', showsError);
+        setShows([]);
       } else {
-        setError('An unexpected error occurred while loading shows');
+        setShows(personalShows || []);
+      }
+
+      // Fetch shows where user is invited
+      const { data: collaborations, error: collabError } = await supabase
+        .from('show_collaborators')
+        .select('show_id')
+        .eq('user_id', user.id);
+
+      if (collabError) {
+        console.error('Failed to fetch collaborations:', collabError);
+        setInvitedShows([]);
+      } else {
+        const showIds = collaborations?.map(collab => collab.show_id) || [];
+
+        if (showIds.length > 0) {
+          const { data: invitedShowsData, error: invitedError } = await supabase
+            .from('shows')
+            .select('*')
+            .in('id', showIds)
+            .eq('is_archived', false)
+            .order('created_at', { ascending: false });
+
+          if (invitedError) {
+            console.error('Failed to fetch invited shows:', invitedError);
+            setInvitedShows([]);
+          } else {
+            setInvitedShows(invitedShowsData || []);
+          }
+        } else {
+          setInvitedShows([]);
+        }
+      }
+    } catch (error) {
+      console.error('Error in fetchShows:', error);
+      if (error instanceof Error) {
+        setError(error.message);
+      } else {
+        setError('An unexpected error occurred while fetching shows');
       }
     } finally {
       setIsLoading(false);
     }
   };
 
-  React.useEffect(() => {
-    fetchShows();
-  }, []);
+  // Filter shows based on search query
+  const filteredPersonalShows = shows.filter(show =>
+    show.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    show.description?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const filteredInvitedShows = invitedShows.filter(show =>
+    show.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    show.description?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const handleViewCueList = (showId: string) => {
     router.push(`/show/${showId}`);
@@ -143,68 +166,85 @@ export function Dashboard() {
     }
   };
 
-  const filteredShows = shows.filter(show =>
-    show.title.toLowerCase().includes((searchQuery || '').toLowerCase())
-  );
-
   const handleCreateShow = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+    setIsCreating(true);
+    setError(null);
+
     try {
-      setIsCreating(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        throw new Error('No authenticated user found');
+      }
 
-      // Prepare show data
-      const showDateTime = formData.date && formData.time 
-        ? new Date(`${formData.date}T${formData.time}`)
-        : null;
-
-      const showData = {
-        title: formData.title,
-        description: formData.description || '',
-        settings: {
-          is_template: formData.is_template,
-          show_date: showDateTime ? showDateTime.toISOString() : null
-        },
-        is_archived: false
-      };
-
-      console.log('Attempting to insert show data:', showData);
-
-      // Insert the show
-      const { data: show, error: showError } = await supabase
+      const { data: show, error: createError } = await supabase
         .from('shows')
-        .insert(showData)
+        .insert([
+          {
+            title: formData.title,
+            description: formData.description,
+            user_id: user.id,
+            is_template: formData.is_template,
+            metadata: {
+              date: formData.date,
+              time: formData.time,
+            },
+          },
+        ])
         .select()
         .single();
 
-      if (showError) throw showError;
+      if (createError) throw createError;
 
-      if (!show) {
-        throw new Error('No show data returned after creation');
+      if (show) {
+        setShows((prevShows) => [{ ...show, total_cues: 0 }, ...prevShows]);
+        setIsCreateModalOpen(false);
+        setFormData({
+          title: '',
+          description: '',
+          date: '',
+          time: '',
+          is_template: false,
+        });
       }
-
-      // Close the modal and reset form
-      setIsCreateModalOpen(false);
-      setFormData({
-        title: '',
-        description: '',
-        date: '',
-        time: '',
-        is_template: false,
-      });
-
-      // Refresh the shows list
-      fetchShows();
-
-      // Redirect to the show's cue list page
-      router.push(`/show/${show.id}`);
-    } catch (error) {
-      console.error('Error creating show:', error);
-      alert('Failed to create show. Please try again.');
+    } catch (err) {
+      console.error('Error creating show:', err);
+      setError(err instanceof Error ? err.message : 'Failed to create show');
     } finally {
       setIsCreating(false);
     }
   };
+
+  const handleLogout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      router.push('/auth/login');
+    } catch (error) {
+      console.error('Error logging out:', error);
+      alert('Failed to log out. Please try again.');
+    }
+  };
+
+  React.useEffect(() => {
+    const setupSubscription = async () => {
+      const { data: { subscription } } = await supabase.auth.onAuthStateChange((event, session) => {
+        if (event === 'SIGNED_IN') {
+          fetchShows();
+        } else if (event === 'SIGNED_OUT') {
+          router.push('/auth/login');
+        }
+      });
+
+      return () => {
+        subscription?.unsubscribe();
+      };
+    };
+
+    setupSubscription();
+    fetchShows();
+  }, []);
 
   if (isLoading) {
     return (
@@ -238,39 +278,133 @@ export function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-900">
-      <div className="max-w-7xl mx-auto p-6">
-        {error && (
-          <div className="mb-4 p-4 text-red-700 bg-red-100 rounded-md">
-            <p>{error}</p>
-          </div>
-        )}
-        <div className="flex items-center justify-between mb-8">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">CueFlow Dashboard</h1>
+    <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="flex justify-between items-center mb-8">
           <div className="flex items-center space-x-4">
-            <Link
-              href="/archive"
-              className="flex items-center px-4 py-2 text-gray-700 bg-gray-100 rounded-md transition-colors hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-            >
-              <Archive className="mr-2 w-5 h-5" />
-              Archive
-            </Link>
-            <Link
-              href="/settings"
-              className="flex items-center px-4 py-2 text-gray-700 bg-gray-100 rounded-md transition-colors hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-            >
-              <Settings className="mr-2 w-5 h-5" />
-              Settings
-            </Link>
             <button
               onClick={() => setIsCreateModalOpen(true)}
-              className="flex items-center justify-center px-4 py-2 text-gray-700 bg-gray-100 rounded-md transition-colors hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+              className="flex items-center px-4 py-2 text-white bg-blue-600 rounded-md transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
             >
-              <Plus className="mr-2 w-5 h-5" />
-              Create New Show
+              <Plus className="w-5 h-5 mr-2" />
+              Create Show
             </button>
           </div>
+          
+          <div className="flex items-center gap-2">
+            <Link
+              href="/settings"
+              className="p-2 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors"
+            >
+              <Settings className="w-5 h-5" />
+            </Link>
+          </div>
         </div>
+
+        <div className="relative mb-8">
+          <input
+            type="text"
+            placeholder="Search shows..."
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          <div className="flex absolute inset-y-0 left-3 items-center">
+            <svg
+              className="w-5 h-5 text-gray-400"
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+            >
+              <path
+                fillRule="evenodd"
+                d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z"
+                clipRule="evenodd"
+              />
+            </svg>
+          </div>
+        </div>
+
+        {/* Personal Shows */}
+        <div className="mb-12">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">Your Shows</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredPersonalShows.map((show) => (
+              <div
+                key={show.id}
+                className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden"
+              >
+                <div className="p-6">
+                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                    {show.title}
+                  </h3>
+                  <div className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                    {new Date(show.created_at).toLocaleDateString()} • {show.total_cues} cues
+                  </div>
+                  <div className="flex flex-col space-y-2">
+                    <button
+                      onClick={() => handleViewCueList(show.id)}
+                      className="w-full px-4 py-2 text-white bg-blue-600 rounded-md transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                    >
+                      View Cue List
+                    </button>
+                    <button
+                      onClick={() => handleArchiveShow(show.id)}
+                      disabled={archivingShowId === show.id}
+                      className="flex items-center justify-center w-full px-4 py-2 text-white bg-red-600 rounded-md transition-colors hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Archive className="w-4 h-4 mr-2" />
+                      {archivingShowId === show.id ? 'Archiving...' : 'Archive Show'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {filteredPersonalShows.length === 0 && (
+            <div className="py-12 text-center">
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+                No personal shows found
+              </h3>
+              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                {searchQuery ? 'Try a different search term' : 'Create your first show to get started'}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Invited Shows */}
+        {invitedShows.length > 0 && (
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">Invited Shows</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredInvitedShows.map((show) => (
+                <div
+                  key={show.id}
+                  className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden border-l-4 border-green-500"
+                >
+                  <div className="p-6">
+                    <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                      {show.title}
+                    </h3>
+                    <div className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                      {new Date(show.created_at).toLocaleDateString()} • {show.total_cues} cues
+                    </div>
+                    <div className="flex flex-col space-y-2">
+                      <button
+                        onClick={() => handleViewCueList(show.id)}
+                        className="w-full px-4 py-2 text-white bg-blue-600 rounded-md transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                      >
+                        View Cue List
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Create Show Modal */}
         {isCreateModalOpen && (
@@ -375,75 +509,6 @@ export function Dashboard() {
                 </form>
               </div>
             </div>
-          </div>
-        )}
-
-        <div className="relative mb-8">
-          <input
-            type="text"
-            placeholder="Search shows..."
-            className="py-2 pr-3 pl-10 w-full leading-5 placeholder-gray-500 text-gray-900 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:focus:border-blue-400 dark:focus:ring-blue-400"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-          <div className="flex absolute inset-y-0 left-3 items-center">
-            <svg
-              className="w-5 h-5 text-gray-400"
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-            >
-              <path
-                fillRule="evenodd"
-                d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z"
-                clipRule="evenodd"
-              />
-            </svg>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredShows.map((show) => (
-            <div
-              key={show.id}
-              className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden"
-            >
-              <div className="p-6">
-                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-                  {show.title}
-                </h3>
-                <div className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                  {new Date(show.created_at).toLocaleDateString()} • {show.total_cues} cues
-                </div>
-                <div className="flex flex-col space-y-2">
-                  <button
-                    onClick={() => handleViewCueList(show.id)}
-                    className="w-full px-4 py-2 text-white bg-blue-600 rounded-md transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-                  >
-                    View Cue List
-                  </button>
-                  <button
-                    onClick={() => handleArchiveShow(show.id)}
-                    disabled={archivingShowId === show.id}
-                    className="flex items-center justify-center w-full px-4 py-2 text-white bg-red-600 rounded-md transition-colors hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <Archive className="w-4 h-4 mr-2" />
-                    {archivingShowId === show.id ? 'Archiving...' : 'Archive Show'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {filteredShows.length === 0 && (
-          <div className="py-12 text-center">
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-              No shows found
-            </h3>
-            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-              {searchQuery ? 'Try a different search term' : 'Create your first show to get started'}
-            </p>
           </div>
         )}
       </div>

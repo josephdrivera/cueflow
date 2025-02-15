@@ -26,8 +26,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
+    let mounted = true;
+
     // Check active sessions and sets the user
     supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (!mounted) return;
+
       if (error) {
         console.error('Error getting session:', error);
         setError(error.message);
@@ -39,34 +43,54 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Listen for changes on auth state (sign in, sign out, etc.)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state changed:', event);
-      setUser(session?.user ?? null);
-      setLoading(false);
+      if (!mounted) return;
+
+      if (event === 'INITIAL_SESSION') {
+        setUser(session?.user ?? null);
+        setLoading(false);
+        return;
+      }
 
       if (event === 'SIGNED_IN') {
-        router.refresh();
+        setUser(session?.user);
+        setLoading(false);
+        // Ensure proper session state with a full page refresh
+        window.location.replace('/');
+        return;
       }
+
       if (event === 'SIGNED_OUT') {
-        router.push('/auth/login');
+        setUser(null);
+        setLoading(false);
+        // Ensure proper session state with a full page refresh
+        window.location.replace('/auth/login');
+        return;
       }
+
+      setUser(session?.user ?? null);
+      setLoading(false);
     });
 
     return () => {
+      mounted = false;
       subscription.unsubscribe();
     };
   }, [router]);
 
   const signOut = async () => {
     try {
+      setLoading(true);
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
-      router.push('/auth/login');
+      // Let the auth state change handler handle the redirect
     } catch (error) {
       if (error instanceof Error) {
         setError(error.message);
       } else {
         setError('An unexpected error occurred during sign out');
       }
+    } finally {
+      setLoading(false);
     }
   };
 

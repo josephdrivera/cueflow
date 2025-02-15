@@ -2,6 +2,9 @@
 
 import * as Dialog from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
+import { LogOut } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabase';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -11,6 +14,14 @@ interface SettingsModalProps {
 }
 
 export function SettingsModal({ isOpen, onClose, showBorders, onToggleBorders }: SettingsModalProps) {
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.refresh();
+    onClose();
+  };
+
   return (
     <Dialog.Root open={isOpen} onOpenChange={onClose}>
       <Dialog.Portal>
@@ -40,6 +51,16 @@ export function SettingsModal({ isOpen, onClose, showBorders, onToggleBorders }:
                     showBorders ? 'translate-x-6' : 'translate-x-1'
                   }`}
                 />
+              </button>
+            </div>
+
+            <div className="pt-4 border-t dark:border-gray-700">
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors"
+              >
+                <LogOut className="w-4 h-4" />
+                Logout
               </button>
             </div>
           </div>

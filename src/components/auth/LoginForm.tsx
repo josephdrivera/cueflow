@@ -14,29 +14,16 @@ export default function LoginForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
-    setLoading(true);
-
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
-
       if (error) throw error;
-
-      if (data.user) {
-        router.push('/');
-        router.refresh();
-      }
+      // Redirect to dashboard after successful login
+      window.location.href = '/dashboard';
     } catch (error) {
-      if (error instanceof Error) {
-        setError(error.message);
-      } else {
-        setError('An unexpected error occurred');
-      }
-    } finally {
-      setLoading(false);
+      setError(error.message);
     }
   };
 
@@ -47,7 +34,7 @@ export default function LoginForm() {
       
       <form onSubmit={handleSubmit} className="space-y-6">
         {error && (
-          <div className="text-sm text-red-400">
+          <div className="text-sm text-red-400 bg-red-400/10 px-4 py-3 rounded-[4px]">
             {error}
           </div>
         )}

@@ -38,7 +38,14 @@ export default function SignUpForm() {
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        // Handle specific error cases
+        if (error.message.toLowerCase().includes('email already registered')) {
+          setError('This email is already registered. Please try logging in instead.');
+          return;
+        }
+        throw error;
+      }
 
       if (data.user) {
         router.push('/auth/verify-email');
@@ -61,7 +68,7 @@ export default function SignUpForm() {
       
       <form onSubmit={handleSubmit} className="space-y-6">
         {error && (
-          <div className="text-sm text-red-400">
+          <div className="text-sm text-red-400 bg-red-400/10 px-4 py-3 rounded-[4px]">
             {error}
           </div>
         )}

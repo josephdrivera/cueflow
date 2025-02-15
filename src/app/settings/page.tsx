@@ -1,13 +1,16 @@
-"use client"
+"use client";
 
 import { useSettings } from "@/contexts/SettingsContext";
-import { ArrowLeft, Monitor, Moon, Sun, Home } from "lucide-react";
+import { ArrowLeft, Monitor, Moon, Sun, Home, LogOut } from "lucide-react";
 import Link from "next/link";
 import { useTheme } from "next-themes";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
 
 export default function SettingsPage() {
   const { settings, updateSettings } = useSettings();
   const { theme, setTheme } = useTheme();
+  const router = useRouter();
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-900">
@@ -194,6 +197,26 @@ export default function SettingsPage() {
                   />
                 </button>
               </div>
+            </div>
+          </section>
+
+          {/* Account Settings */}
+          <section>
+            <h2 className="mb-4 text-lg font-semibold">Account</h2>
+            <div className="p-4 space-y-4 bg-gray-50 rounded-lg dark:bg-gray-800">
+              <button
+                onClick={async () => {
+                  await supabase.auth.signOut();
+                  router.push('/login');
+                }}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 text-red-600 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+              >
+                <LogOut className="w-5 h-5" />
+                <span className="font-medium">Logout</span>
+              </button>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Sign out of your account and return to the login screen.
+              </p>
             </div>
           </section>
 
