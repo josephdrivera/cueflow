@@ -150,6 +150,7 @@ const CueForm: React.FC<{ dayCueListId: string }> = ({ dayCueListId }) => {
       const newCue = {
         day_cue_list_id: dayCueListId,
         cue_number: cueData.cueId,
+        display_id: cueData.cueId, // Set display_id to be the same as cue_number by default
         start_time: formatTimeForDatabase(cueData.startTime),
         run_time: formattedRunTime,
         end_time: formatTimeForDatabase(cueData.endTime),

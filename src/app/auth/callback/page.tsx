@@ -1,24 +1,36 @@
-import { redirect } from 'next/navigation';
-import { createClient } from '@supabase/supabase-js';
+'use client';
 
-export default async function AuthCallbackPage() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabase';
 
-  if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error('Missing Supabase environment variables');
-  }
+export default function AuthCallbackPage() {
+  const router = useRouter();
 
-  const supabase = createClient(supabaseUrl, supabaseAnonKey);
+  useEffect(() => {
+    const handleCallback = async () => {
+      try {
+        // Get the code from the URL
+        const code = new URL(window.location.href).searchParams.get('code');
+        
+        if (code) {
+          await supabase.auth.exchangeCodeForSession(code);
+        }
+        
+        // Redirect to home page after successful authentication
+        router.push('/');
+      } catch (error) {
+        console.error('Error in auth callback:', error);
+        router.push('/auth/login?error=callback_error');
+      }
+    };
 
-  // Exchange the code for a session
-  const { error } = await supabase.auth.exchangeCodeForSession(
-    window.location.search
+    handleCallback();
+  }, [router]);
+
+  return (
+    <div className="min-h-screen w-full flex items-center justify-center bg-black">
+      <div className="text-white">Processing authentication...</div>
+    </div>
   );
-
-  if (!error) {
-    redirect('/');
-  }
-
-  return null;
 }

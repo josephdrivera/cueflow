@@ -1,5 +1,11 @@
-import CueSheetEditor from "@/components/CueSheetEditor";
+import { Dashboard } from "@/components/Dashboard";
 
 export default function Home() {
-  return <CueSheetEditor />;
+  return (
+    <div className="min-h-screen bg-white dark:bg-gray-900">
+      <main>
+        <Dashboard />
+      </main>
+    </div>
+  );
 }

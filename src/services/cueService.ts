@@ -97,24 +97,24 @@ export async function createCue(cue: NewCue): Promise<Cue> {
 
     if (error) {
       console.error('Supabase error creating cue:', error);
-      // Check if it's a connection error
-      if (!error.code && !error.message && !error.details) {
-        throw new Error('Connection error: Unable to reach the database. Please check your connection and try again.');
-      }
-      throw new Error(`Database error: ${error.message}${error.details ? ` - ${error.details}` : ''}`);
+      // Construct a detailed error message
+      const errorMessage = error.message || 
+        (error.details ? `Database error: ${error.details}` : 'Unknown database error');
+      throw new Error(`Failed to create cue: ${errorMessage}`);
     }
 
     if (!data) {
-      throw new Error('No data returned from cue creation');
+      throw new Error('No data returned after creating cue');
     }
 
     return data;
   } catch (error) {
     console.error('Error in createCue:', error);
     if (error instanceof Error) {
-      console.error('Error message:', error.message);
+      throw error;  // Re-throw the error with its original message
     }
-    throw error;
+    // If it's not an Error instance, wrap it in an Error
+    throw new Error(`Failed to create cue: ${String(error)}`);
   }
 }
 
