@@ -83,6 +83,12 @@ export async function getShowById(id: string): Promise<Show> {
 
 export async function getAllShows(): Promise<Show[]> {
   try {
+    const session = await supabase.auth.getSession();
+    if (!session.data.session) {
+      console.error('No active session found');
+      throw new Error('Authentication required');
+    }
+
     const { data, error } = await supabase
       .from(TABLE_NAME)
       .select('*')
@@ -90,6 +96,11 @@ export async function getAllShows(): Promise<Show[]> {
 
     if (error) {
       console.error('Error getting shows:', error);
+      console.error('Error details:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint
+      });
       throw error;
     }
     

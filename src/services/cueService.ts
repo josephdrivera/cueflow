@@ -10,7 +10,7 @@ export async function getAllCues(showId: string): Promise<Cue[]> {
     const { data, error } = await supabase
       .from(TABLE_NAME)
       .select('*')
-      .eq('show_id', showId)
+      .eq('day_cue_list_id', showId)
       .order('cue_number');
 
     if (error) {
@@ -97,24 +97,24 @@ export async function createCue(cue: NewCue): Promise<Cue> {
 
     if (error) {
       console.error('Supabase error creating cue:', error);
-      // Check if it's a connection error
-      if (!error.code && !error.message && !error.details) {
-        throw new Error('Connection error: Unable to reach the database. Please check your connection and try again.');
-      }
-      throw new Error(`Database error: ${error.message}${error.details ? ` - ${error.details}` : ''}`);
+      // Construct a detailed error message
+      const errorMessage = error.message || 
+        (error.details ? `Database error: ${error.details}` : 'Unknown database error');
+      throw new Error(`Failed to create cue: ${errorMessage}`);
     }
 
     if (!data) {
-      throw new Error('No data returned from cue creation');
+      throw new Error('No data returned after creating cue');
     }
 
     return data;
   } catch (error) {
     console.error('Error in createCue:', error);
     if (error instanceof Error) {
-      console.error('Error message:', error.message);
+      throw error;  // Re-throw the error with its original message
     }
-    throw error;
+    // If it's not an Error instance, wrap it in an Error
+    throw new Error(`Failed to create cue: ${String(error)}`);
   }
 }
 
@@ -138,7 +138,7 @@ export async function updateCue(id: string, cue: Partial<Cue>): Promise<Cue> {
         audio: cue.audio,
         lighting: cue.lighting,
         notes: cue.notes,
-        show_id: cue.show_id,
+        day_cue_list_id: cue.day_cue_list_id,
         previous_cue_id: cue.previous_cue_id,
         next_cue_id: cue.next_cue_id,
       })
@@ -167,51 +167,18 @@ export async function updateCue(id: string, cue: Partial<Cue>): Promise<Cue> {
 
 export async function deleteCue(id: string): Promise<void> {
   try {
-    // First, get all cues that reference this cue as their previous_cue or next_cue
-    const [{ data: previousReferences, error: prevError }, { data: nextReferences, error: nextError }] = await Promise.all([
-      supabase
-        .from(TABLE_NAME)
-        .select('id')
-        .eq('previous_cue_id', id),
-      supabase
-        .from(TABLE_NAME)
-        .select('id')
-        .eq('next_cue_id', id)
-    ]);
+    console.log('Starting to delete cue with ID:', id);
 
-    if (prevError) throw prevError;
-    if (nextError) throw nextError;
+    // First, update any references to this cue to be null
+    const { error: updateError } = await supabase
+      .rpc('update_cue_references', { target_id: id });
 
-    // Update all references in parallel
-    const updatePromises = [];
-
-    if (previousReferences?.length > 0) {
-      updatePromises.push(
-        supabase
-          .from(TABLE_NAME)
-          .update({ previous_cue_id: null })
-          .eq('previous_cue_id', id)
-      );
+    if (updateError) {
+      console.error('Error updating references:', updateError);
+      throw updateError;
     }
 
-    if (nextReferences?.length > 0) {
-      updatePromises.push(
-        supabase
-          .from(TABLE_NAME)
-          .update({ next_cue_id: null })
-          .eq('next_cue_id', id)
-      );
-    }
-
-    if (updatePromises.length > 0) {
-      const results = await Promise.all(updatePromises);
-      const updateError = results.find(r => r.error);
-      if (updateError) {
-        throw updateError.error;
-      }
-    }
-
-    // Now we can safely delete the cue
+    // Delete the cue
     const { error: deleteError } = await supabase
       .from(TABLE_NAME)
       .delete()
@@ -221,6 +188,8 @@ export async function deleteCue(id: string): Promise<void> {
       console.error('Error deleting cue:', deleteError);
       throw deleteError;
     }
+
+    console.log('Successfully deleted cue');
   } catch (error) {
     console.error('Error in deleteCue:', error);
     if (error instanceof Error) {
@@ -261,7 +230,7 @@ export async function insertCueBetween(
   // Create the new cue
   const newCue = await createCue({
     ...cue,
-    show_id: showId,
+    day_cue_list_id: showId,
     cue_number: newCueNumber,
     previous_cue_id: previousCueId,
     next_cue_id: nextCueId,
@@ -276,17 +245,12 @@ export async function insertCueBetween(
   return newCue;
 }
 
-export async function checkDuplicateCueNumber(showId: string, cueNumber: string, excludeId?: string): Promise<boolean> {
+export async function checkDuplicateCueNumber(day_cue_list_id: string, cueNumber: string, excludeId?: string): Promise<boolean> {
   try {
-    if (!showId || !cueNumber) {
-      console.error('Missing required parameters:', { showId, cueNumber });
-      return false;
-    }
-
     let query = supabase
       .from(TABLE_NAME)
       .select('id')
-      .eq('show_id', showId)
+      .eq('day_cue_list_id', day_cue_list_id)
       .eq('cue_number', cueNumber);
     
     if (excludeId) {
@@ -295,17 +259,10 @@ export async function checkDuplicateCueNumber(showId: string, cueNumber: string,
 
     const { data, error } = await query;
 
-    if (error) {
-      console.error('Supabase error checking duplicate cue number:', error);
-      throw error;
-    }
-
-    return data && data.length > 0;
+    if (error) throw error;
+    return data.length > 0;
   } catch (error) {
     console.error('Error checking duplicate cue number:', error);
-    if (error instanceof Error) {
-      console.error('Error message:', error.message);
-    }
     throw error;
   }
 }

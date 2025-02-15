@@ -163,7 +163,7 @@ const CueSheetEditor = () => {
             const { data: cueData, error: cuesError } = await supabase
               .from('cues')
               .select('*')
-              .eq('cue_list_id', lists[0].id)
+              .eq('day_cue_list_id', lists[0].id)
               .order('cue_number');
 
             if (cuesError) throw cuesError;
@@ -185,6 +185,31 @@ const CueSheetEditor = () => {
       tableRef.current.className = cn("min-w-full", settings.showBorders && "border-collapse [&_td]:border-r [&_th]:border-r dark:[&_td]:border-gray-800 dark:[&_th]:border-gray-800 [&_td]:border-gray-200 [&_th]:border-gray-200 [&_tr_td:last-child]:border-0 [&_tr_th:last-child]:border-0")
     }
   }, [settings.showBorders]);
+
+  // Load cues when selected cue list changes
+  useEffect(() => {
+    const loadCuesForList = async () => {
+      if (!selectedCueList) {
+        setCues([]);
+        return;
+      }
+
+      try {
+        const { data: cueData, error: cuesError } = await supabase
+          .from('cues')
+          .select('*')
+          .eq('day_cue_list_id', selectedCueList.id)
+          .order('cue_number');
+
+        if (cuesError) throw cuesError;
+        setCues(cueData || []);
+      } catch (error) {
+        console.error('Error loading cues for list:', error);
+      }
+    };
+
+    loadCuesForList();
+  }, [selectedCueList]);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -280,7 +305,7 @@ const CueSheetEditor = () => {
       const { data: refreshedCues, error: refreshError } = await supabase
         .from('cues')
         .select('*')
-        .eq('cue_list_id', selectedCueList.id)
+        .eq('day_cue_list_id', selectedCueList.id)
         .order('cue_number');
 
       if (refreshError) {
@@ -302,7 +327,7 @@ const CueSheetEditor = () => {
         const { data: refreshedCues } = await supabase
           .from('cues')
           .select('*')
-          .eq('cue_list_id', selectedCueList?.id)
+          .eq('day_cue_list_id', selectedCueList?.id)
           .order('cue_number');
         if (refreshedCues) {
           setCues(refreshedCues);
@@ -341,14 +366,30 @@ const CueSheetEditor = () => {
   };
 
   const handleDeleteCue = async (id: string) => {
-    if (window.confirm('Are you sure you want to delete this cue?')) {
+    console.log('Delete button clicked for cue:', id);
+    const confirmDelete = window.confirm('Are you sure you want to delete this cue?');
+    console.log('User confirmed:', confirmDelete);
+    
+    if (confirmDelete) {
       try {
-        await deleteCue(id);
+        console.log('Attempting to delete cue with ID:', id);
+        // Try direct Supabase delete first
+        const { error } = await supabase
+          .from('cues')
+          .delete()
+          .eq('id', id);
+
+        if (error) {
+          console.error('Error deleting cue directly:', error);
+          throw error;
+        }
+
+        console.log('Successfully deleted cue from database');
         // Remove the cue from local state
         setCues(prevCues => prevCues.filter(cue => cue.id !== id));
       } catch (error) {
-        console.error('Error deleting cue:', error);
-        // You might want to show an error message to the user here
+        console.error('Error in handleDeleteCue:', error);
+        alert('Failed to delete cue. Please check console for details.');
       }
     }
   };
@@ -378,10 +419,17 @@ const CueSheetEditor = () => {
         );
       } else {
         // It's a new cue
+        const existingCueNumbers = await supabase
+          .from('cues')
+          .select('cue_number')
+          .eq('day_cue_list_id', selectedCueList.id);
+
+        const newCueNumber = ensureUniqueCueNumber(cueData.cue_number || 'A001', existingCueNumbers.data.map(cue => cue.cue_number));
+
         const newCue = await createCue({
           ...cueData,
-          cue_list_id: selectedCueList.id,
-          cue_number: cueData.cue_number || 'A001', 
+          day_cue_list_id: selectedCueList.id,
+          cue_number: newCueNumber, 
           start_time: cueData.start_time || '00:00:00',
           run_time: cueData.run_time || '00:00:00',
           end_time: cueData.end_time || '00:00:00',

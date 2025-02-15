@@ -78,15 +78,15 @@
 
 @layer components {
   .table-header {
-    @apply text-gray-400 font-medium;
+    @apply text-muted-foreground font-medium;
   }
   
   .table-cell {
-    @apply text-gray-300;
+    @apply text-foreground;
   }
 
   .input-search {
-    @apply bg-[#1a1d24] border-gray-700 text-gray-300 placeholder-gray-500;
+    @apply bg-secondary border-border text-foreground placeholder-muted-foreground;
   }
 
   .input-primary {
@@ -94,7 +94,7 @@
   }
 
   .btn-primary {
-    @apply bg-blue-600 text-white hover:bg-blue-700;
+    @apply bg-primary text-primary-foreground hover:bg-primary-foreground hover:text-primary;
   }
 
   .btn-outline {
