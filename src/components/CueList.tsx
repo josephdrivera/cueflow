@@ -5,26 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { Plus, Settings } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
 import { CueModal } from './CueModal';
-
-interface Cue {
-  id: string;
-  cue_number: string;
-  start_time: string;
-  run_time: string;
-  end_time: string;
-  activity: string;
-  graphics?: string;
-  video?: string;
-  audio?: string;
-  lighting?: string;
-  notes?: string;
-  created_at: string;
-  updated_at: string;
-  previous_cue_id?: string;
-  next_cue_id?: string;
-  cue_list_id: string;
-  display_id: string;
-}
+import { Cue, NewCue } from '../types/cue';
 
 interface CueListProps {
   showId: string;
