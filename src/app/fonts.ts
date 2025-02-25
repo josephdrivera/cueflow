@@ -1,23 +1,15 @@
-import localFont from 'next/font/local';
+import { Inter, Roboto_Mono } from 'next/font/google';
 
-export const geistSans = localFont({
-  src: [
-    {
-      path: './fonts/GeistVF.woff',
-      style: 'normal',
-    },
-  ],
+// Use Inter as a replacement for Geist Sans
+export const geistSans = Inter({
+  subsets: ['latin'],
   variable: '--font-geist-sans',
   display: 'swap',
 });
 
-export const geistMono = localFont({
-  src: [
-    {
-      path: './fonts/GeistMonoVF.woff',
-      style: 'normal',
-    },
-  ],
+// Use Roboto Mono as a replacement for Geist Mono
+export const geistMono = Roboto_Mono({
+  subsets: ['latin'],
   variable: '--font-geist-mono',
   display: 'swap',
 });
