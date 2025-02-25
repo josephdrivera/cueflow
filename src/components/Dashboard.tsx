@@ -62,29 +62,22 @@ export function Dashboard() {
         return;
       }
 
-      // Fetch personal shows
-      const { data: personalShows, error: showsError } = await supabase
+      // Fetch shows where user is the owner
+      const { data: ownedShows, error: showsError } = await supabase
         .from('shows')
         .select('*')
         .eq('user_id', user.id)
         .eq('is_archived', false)
         .order('created_at', { ascending: false });
 
-      console.log('Personal shows query:', {
-        userId: user.id,
-        shows: personalShows,
-        error: showsError,
-        showCount: personalShows?.length || 0
-      });
-
       if (showsError) {
-        console.error('Failed to fetch personal shows:', showsError);
+        console.error('Failed to fetch owned shows:', showsError);
         setShows([]);
       } else {
-        setShows(personalShows || []);
+        setShows(ownedShows || []);
       }
 
-      // Fetch shows where user is invited
+      // Fetch shows where user is a collaborator
       const { data: collaborations, error: collabError } = await supabase
         .from('show_collaborators')
         .select('show_id')
@@ -110,17 +103,11 @@ export function Dashboard() {
           } else {
             setInvitedShows(invitedShowsData || []);
           }
-        } else {
-          setInvitedShows([]);
         }
       }
-    } catch (error) {
-      console.error('Error in fetchShows:', error);
-      if (error instanceof Error) {
-        setError(error.message);
-      } else {
-        setError('An unexpected error occurred while fetching shows');
-      }
+    } catch (err) {
+      console.error('Error fetching shows:', err);
+      setError('Failed to fetch shows. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -168,49 +155,54 @@ export function Dashboard() {
 
   const handleCreateShow = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsCreating(true);
-    setError(null);
+    if (!formData.title.trim()) return;
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      setIsCreating(true);
+      setError(null);
+
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
       
+      if (userError) throw userError;
       if (!user) {
-        throw new Error('No authenticated user found');
+        router.push('/auth/login');
+        return;
       }
 
       const { data: show, error: createError } = await supabase
         .from('shows')
-        .insert([
-          {
-            title: formData.title,
-            description: formData.description,
-            user_id: user.id,
-            is_template: formData.is_template,
-            metadata: {
-              date: formData.date,
-              time: formData.time,
-            },
-          },
-        ])
+        .insert({
+          title: formData.title.trim(),
+          description: formData.description.trim(),
+          user_id: user.id,
+          is_template: formData.is_template,
+          is_archived: false
+        })
         .select()
         .single();
 
       if (createError) throw createError;
 
+      // Reset form and close modal
+      setFormData({
+        title: '',
+        description: '',
+        date: '',
+        time: '',
+        is_template: false,
+      });
+      setIsCreateModalOpen(false);
+
+      // Refresh shows list
+      fetchShows();
+      
+      // Navigate to the new show
       if (show) {
-        setShows((prevShows) => [{ ...show, total_cues: 0 }, ...prevShows]);
-        setIsCreateModalOpen(false);
-        setFormData({
-          title: '',
-          description: '',
-          date: '',
-          time: '',
-          is_template: false,
-        });
+        router.push(`/show/${show.id}`);
       }
     } catch (err) {
       console.error('Error creating show:', err);
-      setError(err instanceof Error ? err.message : 'Failed to create show');
+      setError('Failed to create show. Please try again.');
     } finally {
       setIsCreating(false);
     }

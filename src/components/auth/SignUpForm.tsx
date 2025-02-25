@@ -48,7 +48,7 @@ export default function SignUpForm() {
       }
 
       if (data.user) {
-        router.push('/auth/verify-email');
+        router.push('/auth/verify-email?email=' + encodeURIComponent(email));
       }
     } catch (error) {
       if (error instanceof Error) {

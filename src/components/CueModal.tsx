@@ -25,7 +25,6 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode, cues, c
       return { ...initialData };
     }
     
-    const now = new Date();
     return {
       cue_number: generateNextCueNumber(cues, currentIndex),
       start_time: '11:26 AM',
@@ -37,6 +36,8 @@ export function CueModal({ isOpen, onClose, onSubmit, initialData, mode, cues, c
       audio: '',
       lighting: '',
       notes: '',
+      day_cue_list_id: showId,
+      display_id: generateNextCueNumber(cues, currentIndex),
     };
   });
 
