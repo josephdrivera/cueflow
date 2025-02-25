@@ -46,19 +46,66 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Fetch user profile including role
   const fetchUserProfile = async (userId: string) => {
     try {
+      // First try to get existing profile
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .single();
 
-      if (error) throw error;
+      // Debug logs for troubleshooting
+      console.log('Profile fetch result:', { data, errorCode: error?.code, errorMessage: error?.message });
+
+      // If we get a "not found" error (PGRST116), create a new profile
+      if (error && error.code === 'PGRST116') {
+        console.log('Profile not found, creating new profile for user:', userId);
+        
+        // Get user email for username
+        const { data: userData } = await supabase.auth.getUser();
+        const email = userData?.user?.email || '';
+        const username = email.split('@')[0]; // Use part before @ as username
+        
+        try {
+          // Create a new profile with default 'user' role
+          const { data: newProfile, error: insertError } = await supabase
+            .from('profiles')
+            .insert([{
+              id: userId,
+              username: username.length >= 3 ? username : `user_${userId.substring(0, 8)}`,
+              role: 'user'
+            }])
+            .select()
+            .single();
+            
+          if (insertError) {
+            console.error('Error creating user profile:', insertError);
+            throw insertError;
+          }
+          
+          console.log('Created new profile:', newProfile);
+          setProfile(newProfile as UserProfile);
+          return;
+        } catch (insertErr) {
+          console.error('Failed to create profile:', insertErr);
+          // More graceful error handling - set a null profile but don't break the app
+          setProfile(null);
+          return;
+        }
+      }
+      
+      // Handle other errors
+      if (error) {
+        console.error('Error fetching profile:', error);
+        // Don't throw the error, just set profile to null
+        setProfile(null);
+        return;
+      }
+      
       setProfile(data as UserProfile);
     } catch (error) {
-      console.error('Error fetching user profile:', error);
-      if (error instanceof Error) {
-        setError(error.message);
-      }
+      console.error('Error in fetchUserProfile:', error);
+      // Don't set error state to prevent UI disruption, just set profile to null
+      setProfile(null);
     }
   };
 

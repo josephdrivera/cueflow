@@ -30,24 +30,80 @@ export default function SignUpForm() {
     setLoading(true);
 
     try {
+      // Step 1: Sign up the user with Supabase Auth
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           emailRedirectTo: `${window.location.origin}/auth/callback`,
+          data: {
+            full_name: '',  // Default empty values for profile data
+            username: email.split('@')[0].length >= 3 
+              ? email.split('@')[0].substring(0, 20) // Use part of email as default username with max length
+              : `user_${Math.random().toString(36).substring(2, 7)}`, // Fallback for short email prefixes
+          }
         },
       });
 
       if (error) {
+        console.error('Supabase signup error:', error);
+        console.error('Error details:', {
+          message: error.message,
+          status: error.status,
+          name: error.name,
+          stack: error.stack
+        });
+        
         // Handle specific error cases
         if (error.message.toLowerCase().includes('email already registered')) {
           setError('This email is already registered. Please try logging in instead.');
           return;
         }
-        throw error;
+        
+        // Set a more informative error message
+        setError(`Signup failed: ${error.message} (Status: ${error.status || 'unknown'})`);
+        return;
       }
 
+      // Step 2: If user was created successfully, attempt to create a profile
       if (data.user) {
+        try {
+          // Check if a profile already exists for this user
+          const { data: profileData, error: profileError } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('id', data.user.id)
+            .single();
+
+          if (profileError && !profileError.message.includes('No rows found')) {
+            console.error('Error checking profile:', profileError);
+          }
+
+          // If no profile exists, create one
+          if (!profileData) {
+            const { error: insertError } = await supabase
+              .from('profiles')
+              .insert([
+                { 
+                  id: data.user.id,
+                  username: email.split('@')[0].length >= 3 
+                    ? email.split('@')[0].substring(0, 20)
+                    : `user_${Math.random().toString(36).substring(2, 7)}`,
+                  full_name: '' 
+                }
+              ]);
+
+            if (insertError) {
+              console.error('Error creating profile:', insertError);
+              // Continue even if profile creation fails
+            }
+          }
+        } catch (profileCreationError) {
+          console.error('Exception during profile creation:', profileCreationError);
+          // Continue anyway, as auth was successful
+        }
+
+        // Redirect to email verification page
         router.push('/auth/verify-email?email=' + encodeURIComponent(email));
       }
     } catch (error) {
