@@ -5,13 +5,14 @@ import { supabase } from '@/lib/supabase';
 import { Plus, Settings } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
 import { CueModal } from './CueModal';
-import { Cue, NewCue } from '../types/cue';
+import { Cue } from '../types/cue';
 
 interface CueListProps {
   showId: string;
+  cueListId?: string;
 }
 
-export function CueList({ showId }: CueListProps) {
+export function CueList({ showId, cueListId }: CueListProps) {
   const [cues, setCues] = useState<Cue[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -34,11 +35,21 @@ export function CueList({ showId }: CueListProps) {
         setIsLoading(true);
         setError(null);
 
-        const { data, error: fetchError } = await supabase
-          .from('cues')
-          .select('*, cue_lists!inner(*)')
-          .eq('cue_lists.show_id', showId)
-          .order('cue_number', { ascending: true });
+        // If cueListId is provided, use it, otherwise fall back to show_id
+        let query;
+        if (cueListId) {
+          query = supabase
+            .from('cues')
+            .select('*')
+            .eq('day_cue_list_id', cueListId);
+        } else {
+          query = supabase
+            .from('cues')
+            .select('*')
+            .eq('show_id', showId);
+        }
+
+        const { data, error: fetchError } = await query.order('cue_number', { ascending: true });
 
         if (fetchError) throw fetchError;
 
@@ -55,7 +66,7 @@ export function CueList({ showId }: CueListProps) {
     };
 
     fetchCues();
-  }, [showId]);
+  }, [showId, cueListId]);
 
   const calculateTotalRunningTime = (cueList: Cue[]) => {
     // Calculate total running time from the cues
@@ -81,40 +92,32 @@ export function CueList({ showId }: CueListProps) {
   }
 
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-900">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="bg-white dark:bg-gray-900">
+      <div className="px-4 py-8">
         <div className="flex justify-between items-center mb-8">
           <div className="flex items-center space-x-2">
-            <button className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700">
-              day two [2025-01-14]
+            <button className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md dark:text-gray-300 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700">
+              Current Cue List
             </button>
           </div>
           <div className="flex items-center space-x-4">
             <button 
               onClick={() => setIsModalOpen(true)}
-              className="flex items-center px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700"
+              className="flex items-center px-4 py-2 text-gray-700 bg-gray-100 rounded-md dark:text-gray-300 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700"
             >
-              <Plus className="w-5 h-5 mr-2" />
+              <Plus className="mr-2 w-5 h-5" />
               Add Cue
-            </button>
-            <button className="flex items-center px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700">
-              <Plus className="w-5 h-5 mr-2" />
-              Add Cue List
-            </button>
-            <button className="flex items-center px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700">
-              <Settings className="w-5 h-5 mr-2" />
-              Settings
             </button>
           </div>
         </div>
 
         <DragDropContext onDragEnd={handleDragEnd}>
-          <div className="overflow-x-auto w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow">
-            <Droppable droppableId="cues" ignoreContainerClipping={false} isDropDisabled={false} isCombineEnabled={false}>
+          <div className="overflow-x-auto w-full bg-white rounded-lg border border-gray-200 shadow dark:bg-gray-800 dark:border-gray-700">
+            <Droppable droppableId="cues">
               {(provided) => (
                 <table className="min-w-full text-gray-700 dark:text-gray-300" {...provided.droppableProps} ref={provided.innerRef}>
                   <thead>
-                    <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+                    <tr className="bg-gray-50 border-b border-gray-200 dark:border-gray-700 dark:bg-gray-800">
                       <th className="px-4 py-3 text-left">Cue ID</th>
                       <th className="px-4 py-3 text-left">Start Time</th>
                       <th className="px-4 py-3 text-left">Run Time</th>
@@ -135,7 +138,7 @@ export function CueList({ showId }: CueListProps) {
                             ref={provided.innerRef}
                             {...provided.draggableProps}
                             {...provided.dragHandleProps}
-                            className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-move"
+                            className="border-b border-gray-200 cursor-move dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"
                           >
                             <td className="px-4 py-3">{cue.cue_number}</td>
                             <td className="px-4 py-3">{cue.start_time}</td>
@@ -157,7 +160,7 @@ export function CueList({ showId }: CueListProps) {
               )}
             </Droppable>
 
-            <div className="flex justify-between px-4 py-3 border-t border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800">
+            <div className="flex justify-between px-4 py-3 text-gray-700 bg-gray-50 border-t border-gray-200 dark:border-gray-700 dark:text-gray-300 dark:bg-gray-800">
               <div>Total Cues: {cues.length}</div>
               <div>Total Running Time: {totalRunningTime}</div>
               <div>Current Time: {new Date().toLocaleDateString()}</div>
@@ -172,43 +175,16 @@ export function CueList({ showId }: CueListProps) {
           onClose={() => setIsModalOpen(false)}
           onSubmit={async (newCue) => {
             try {
-              // First, get the default cue_list for this show
-              let { data: cueList, error: cueListError } = await supabase
-                .from('cue_lists')
-                .select('id')
-                .eq('show_id', showId)
-                .eq('name', 'Default List')
-                .single();
+              // Use day_cue_list_id if available, otherwise use legacy format
+              const cueData = {
+                ...newCue,
+                day_cue_list_id: cueListId,
+                show_id: !cueListId ? showId : undefined
+              };
 
-              if (!cueList) {
-                // If no cue_list exists, create one
-                const { data: newCueList, error: createError } = await supabase
-                  .from('cue_lists')
-                  .insert([{ 
-                    show_id: showId, 
-                    name: 'Default List',
-                    description: 'Default cue list',
-                    is_active: true  // Make sure the list is active
-                  }])
-                  .select()
-                  .single();
-
-                if (createError) {
-                  console.error('Error creating cue list:', createError);
-                  throw createError;
-                }
-                
-                cueList = newCueList;
-              }
-
-              // Now insert the cue using the cue list ID
               const { data, error } = await supabase
                 .from('cues')
-                .insert([{ 
-                  ...newCue, 
-                  cue_list_id: cueList.id,
-                  display_id: newCue.cue_number
-                }])
+                .insert([cueData])
                 .select()
                 .single();
 

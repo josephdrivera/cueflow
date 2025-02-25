@@ -1,31 +1,49 @@
 export interface Cue {
-  id: string;           // System ID (UUID)
-  created_at?: string;
-  updated_at?: string;
-  day_cue_list_id: string; // Reference to the day's cue list
+  id: string;
+  day_cue_list_id?: string;
+  show_id?: string;
   cue_number: string;
-  display_id: string;   // Display version of cue number
-  start_time: string;  // Required time field
-  run_time: string;    // Required time field
-  end_time: string;    // Required time field
-  activity?: string;
+  display_id?: string;  
+  start_time: string;
+  run_time: string;
+  end_time: string;
+  activity: string;
   graphics?: string;
   video?: string;
   audio?: string;
   lighting?: string;
   notes?: string;
-  previous_cue_id?: string | null;
-  next_cue_id?: string | null;
-}
-
-export interface DayCueList {
-  id: string;           // System ID (UUID)
-  show_id: string;      // Reference to the show
-  name: string;         // Name of the cue list (e.g., "Day 1", "Opening Night")
-  date: string;         // Date for this cue list
+  previous_cue_id?: string;
+  next_cue_id?: string;
   created_at?: string;
   updated_at?: string;
 }
 
-export type NewCue = Omit<Cue, 'id' | 'created_at' | 'updated_at'>;
-export type NewDayCueList = Omit<DayCueList, 'id' | 'created_at' | 'updated_at'>;
+export interface NewCue {
+  day_cue_list_id?: string;
+  show_id?: string;
+  cue_number: string;
+  display_id?: string;
+  start_time: string;
+  run_time: string;
+  end_time: string;
+  activity: string;
+  graphics?: string;
+  video?: string;
+  audio?: string;
+  lighting?: string;
+  notes?: string;
+  previous_cue_id?: string;
+  next_cue_id?: string;
+}
+
+export interface DayCueList {
+  id: string;
+  show_id: string;
+  name: string;
+  date: string;
+  description?: string;
+  is_active?: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
