@@ -5,25 +5,62 @@ import { User } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 
+// Define the user role type
+type UserRole = 'admin' | 'user';
+
+// Define the user profile type that includes role
+type UserProfile = {
+  id: string;
+  username: string | null;
+  full_name: string | null;
+  avatar_url: string | null;
+  role: UserRole;
+  updated_at: string;
+};
+
 type AuthContextType = {
   user: User | null;
+  profile: UserProfile | null;
   loading: boolean;
   signOut: () => Promise<void>;
   error: string | null;
+  isAdmin: boolean;
 };
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
+  profile: null,
   loading: true,
   signOut: async () => {},
   error: null,
+  isAdmin: false,
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+
+  // Fetch user profile including role
+  const fetchUserProfile = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (error) throw error;
+      setProfile(data as UserProfile);
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+      if (error instanceof Error) {
+        setError(error.message);
+      }
+    }
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -37,6 +74,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setError(error.message);
       } else {
         setUser(session?.user ?? null);
+        if (session?.user) {
+          fetchUserProfile(session.user.id);
+        }
       }
       setLoading(false);
     });
@@ -47,12 +87,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (event === 'INITIAL_SESSION') {
         setUser(session?.user ?? null);
+        if (session?.user) {
+          await fetchUserProfile(session.user.id);
+        }
         setLoading(false);
         return;
       }
 
       if (event === 'SIGNED_IN') {
         setUser(session?.user);
+        if (session?.user) {
+          await fetchUserProfile(session.user.id);
+        }
         setLoading(false);
         // Ensure proper session state with a full page refresh
         window.location.replace('/');
@@ -61,6 +107,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (event === 'SIGNED_OUT') {
         setUser(null);
+        setProfile(null);
         setLoading(false);
         // Ensure proper session state with a full page refresh
         window.location.replace('/auth/login');
@@ -68,6 +115,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       setUser(session?.user ?? null);
+      if (session?.user) {
+        await fetchUserProfile(session.user.id);
+      } else {
+        setProfile(null);
+      }
       setLoading(false);
     });
 
@@ -95,7 +147,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, signOut, error }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      profile, 
+      loading, 
+      signOut, 
+      error,
+      isAdmin: profile?.role === 'admin'
+    }}>
       {children}
     </AuthContext.Provider>
   );
