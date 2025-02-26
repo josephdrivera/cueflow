@@ -4,7 +4,7 @@
 import type { App } from 'firebase-admin/app';
 
 // Helper to initialize Firebase Admin once
-export function getFirebaseAdminApp(): App | null {
+export async function getFirebaseAdminApp(): Promise<App | null> {
   // Only execute on the server side
   if (typeof window !== 'undefined') {
     console.warn('Firebase Admin SDK can only be used on the server side');
@@ -13,6 +13,7 @@ export function getFirebaseAdminApp(): App | null {
 
   // Use dynamic import to load the server-side implementation
   // This prevents the node:process imports from being included in the client bundle
-  const { getFirebaseAdminApp: getServerApp } = require('./firebase-admin-server');
-  return getServerApp();
+  return import('./firebase-admin-server').then(module => {
+    return module.getFirebaseAdminApp();
+  });
 }

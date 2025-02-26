@@ -17,9 +17,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <head>
-        {/* Font preloading removed as we're using Google Fonts */}
-      </head>
+      <head />
       <body
         className={clsx(
           "min-h-screen font-sans antialiased",

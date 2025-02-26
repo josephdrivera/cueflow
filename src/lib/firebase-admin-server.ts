@@ -16,7 +16,7 @@ export function getFirebaseAdminApp(): App {
 
   return initializeApp({
     credential: cert(serviceAccount),
+    databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL,
     projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
   });
 }

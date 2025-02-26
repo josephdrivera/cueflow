@@ -1,85 +1,76 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { cookies } from 'next/headers';
-import { getAuth, onIdTokenChanged } from 'firebase-admin/auth';
+import { getAuth } from 'firebase-admin/auth';
 import { getFirebaseAdminApp } from './lib/firebase-admin';
 
 export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
-  });
-
-  console.log(' Middleware - Request URL:', request.nextUrl.pathname);
+  // Get the path
+  const path = request.nextUrl.pathname;
+  
+  // Public paths that don't require authentication
+  const PUBLIC_PATHS = [
+    '/auth/login', 
+    '/auth/signup', 
+    '/auth/forgot-password', 
+    '/auth/reset-password',
+    '/auth/verify-email',
+    '/auth/callback',
+    '/'
+  ];
+  
+  // API paths that don't require auth checks
+  const PUBLIC_API_PATHS = [
+    '/api/auth/callback',
+    '/api/auth/logout'
+  ];
+  
+  // Static paths
+  if (
+    path.startsWith('/_next') || 
+    path.startsWith('/favicon.ico') ||
+    path.startsWith('/public')
+  ) {
+    return NextResponse.next();
+  }
+  
+  // Check if the path is public
+  const isPublicPath = PUBLIC_PATHS.some(p => path === p || path.startsWith(p));
+  const isPublicApiPath = PUBLIC_API_PATHS.some(p => path === p || path.startsWith(p));
+  
+  if (isPublicPath || isPublicApiPath) {
+    return NextResponse.next();
+  }
+  
+  // Get the session cookie
+  const sessionCookie = request.cookies.get('__session')?.value;
+  
+  if (!sessionCookie) {
+    // Redirect to login if no session cookie
+    const url = new URL('/auth/login', request.url);
+    url.searchParams.set('redirectedFrom', path);
+    return NextResponse.redirect(url);
+  }
   
   try {
-    // Get the Firebase session token from cookies
-    const sessionCookie = request.cookies.get('__session')?.value;
-
-    if (!sessionCookie) {
-      console.error(' Middleware - No session cookie found');
-      return redirectToLogin(request);
-    }
-
-    // Initialize Firebase Admin
+    // Verify the session cookie
     const adminApp = getFirebaseAdminApp();
     const adminAuth = getAuth(adminApp);
-
-    // Verify the session cookie
-    try {
-      const decodedClaims = await adminAuth.verifySessionCookie(sessionCookie, true);
-      const user = decodedClaims;
-
-      console.log(' Middleware - Session status: Active', user.uid || '');
-
-      // Auth callback should always be allowed
-      if (request.nextUrl.pathname.startsWith('/api/auth')) {
-        console.log(' Middleware - Auth callback route detected');
-        return response;
-      }
-
-      // If the user is signed in and trying to access auth pages, redirect them home
-      if (user && request.nextUrl.pathname.startsWith('/auth')) {
-        console.log(' Middleware - Authenticated user redirected from auth page to home');
-        return NextResponse.redirect(new URL('/', request.url));
-      }
-
-      return response;
-    } catch (error) {
-      console.error(' Middleware - Invalid session cookie:', error);
-      return redirectToLogin(request);
-    }
+    
+    await adminAuth.verifySessionCookie(sessionCookie, true);
+    
+    // If verification succeeds, the user is authenticated
+    return NextResponse.next();
   } catch (error) {
-    console.error(' Middleware - Exception:', error);
-    return redirectToLogin(request);
+    // If verification fails, redirect to login
+    console.error('Session verification failed:', error);
+    
+    const url = new URL('/auth/login', request.url);
+    url.searchParams.set('redirectedFrom', path);
+    url.searchParams.set('error', 'Your session has expired. Please log in again.');
+    
+    return NextResponse.redirect(url);
   }
-}
-
-function redirectToLogin(request: NextRequest) {
-  // If the user is not signed in and trying to access a protected route
-  if (!request.nextUrl.pathname.startsWith('/auth')) {
-    console.log(' Middleware - Unauthenticated user attempting to access:', request.nextUrl.pathname);
-    let redirectUrl = request.nextUrl.pathname;
-    if (redirectUrl !== '/') {
-      return NextResponse.redirect(
-        new URL(`/auth/login?redirectedFrom=${redirectUrl}`, request.url)
-      );
-    }
-  }
-  return NextResponse.redirect(new URL('/auth/login', request.url));
 }
 
 export const config = {
-  matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - api/auth (auth API routes)
-     * - auth (auth pages)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public folder
-     */
-    '/((?!api/auth|auth|_next/static|_next/image|favicon.ico|public/).*)',
-  ],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 };

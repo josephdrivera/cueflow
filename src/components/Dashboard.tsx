@@ -1,10 +1,11 @@
 'use client';
 
-import React from 'react';
-import { auth, db } from '@/lib/firebase';
+import React, { useState, useEffect } from 'react';
+import { db } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Settings, Plus, Archive } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 import PendingInvitations from './PendingInvitations';
 import { 
   collection, 
@@ -16,10 +17,8 @@ import {
   addDoc, 
   onSnapshot,
   orderBy,
-  Timestamp,
   serverTimestamp
 } from 'firebase/firestore';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
 
 interface Show {
   id: string;
@@ -31,7 +30,6 @@ interface Show {
   metadata?: any;
   total_cues: number;
   is_archived: boolean;
-  archived?: boolean;
 }
 
 interface CreateShowFormData {
@@ -43,90 +41,104 @@ interface CreateShowFormData {
 }
 
 export function Dashboard() {
-  const [shows, setShows] = React.useState<Show[]>([]);
-  const [invitedShows, setInvitedShows] = React.useState<Show[]>([]);
-  const [searchQuery, setSearchQuery] = React.useState('');
-  const [isLoading, setIsLoading] = React.useState(true);
-  const [error, setError] = React.useState<string | null>(null);
-  const [isCreateModalOpen, setIsCreateModalOpen] = React.useState(false);
-  const [isCreating, setIsCreating] = React.useState(false);
-  const [formData, setFormData] = React.useState<CreateShowFormData>({
+  const { user, loading: authLoading } = useAuth();
+  const [shows, setShows] = useState<Show[]>([]);
+  const [invitedShows, setInvitedShows] = useState<Show[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [formData, setFormData] = useState<CreateShowFormData>({
     title: '',
     description: '',
     date: '',
     time: '',
     is_template: false,
   });
-  const [archivingShowId, setArchivingShowId] = React.useState<string | null>(null);
+  const [archivingShowId, setArchivingShowId] = useState<string | null>(null);
   const router = useRouter();
 
-  const fetchShows = async () => {
-    try {
-      setError(null);
-
-      // Get current user
-      const user = auth.currentUser;
-      
-      if (!user) {
-        router.push('/auth/login');
-        return;
+  // Set up listeners for shows when the user is authenticated
+  useEffect(() => {
+    if (authLoading || !user) return;
+    
+    setIsLoading(true);
+    setError(null);
+    
+    // Query for user's shows
+    const showsQuery = query(
+      collection(db, 'shows'),
+      where('user_id', '==', user.uid),
+      where('is_archived', '==', false),
+      orderBy('created_at', 'desc')
+    );
+    
+    // Subscribe to shows collection
+    const unsubscribeShows = onSnapshot(
+      showsQuery,
+      (snapshot) => {
+        const showsList = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          created_at: doc.data().created_at?.toDate?.()?.toISOString() || new Date().toISOString()
+        })) as Show[];
+        
+        setShows(showsList);
+        setIsLoading(false);
+      },
+      (err) => {
+        console.error('Error fetching shows:', err);
+        setError('Failed to load shows. Please try again.');
+        setIsLoading(false);
       }
-
-      // Fetch shows where user is the owner
-      const showsQuery = query(
-        collection(db, 'shows'),
-        where('user_id', '==', user.uid),
-        where('is_archived', '==', false),
-        orderBy('created_at', 'desc')
-      );
-
-      const showsSnapshot = await getDocs(showsQuery);
-      const ownedShows = showsSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        created_at: doc.data().created_at?.toDate?.()?.toISOString() || new Date().toISOString()
-      })) as Show[];
-      
-      setShows(ownedShows);
-
-      // Fetch shows where user is a collaborator
-      const collaborationsQuery = query(
-        collection(db, 'show_collaborators'),
-        where('user_id', '==', user.uid)
-      );
-
-      const collaborationsSnapshot = await getDocs(collaborationsQuery);
-      const showIds = collaborationsSnapshot.docs.map(doc => doc.data().show_id);
-
-      if (showIds.length > 0) {
-        // Firebase doesn't support direct 'in' queries with arrays, so we need to use multiple queries or a different approach
-        // For simplicity, we'll fetch all non-archived shows and filter client-side
-        const invitedShowsQuery = query(
-          collection(db, 'shows'),
-          where('is_archived', '==', false),
-          orderBy('created_at', 'desc')
-        );
-
-        const invitedShowsSnapshot = await getDocs(invitedShowsQuery);
-        const invitedShowsData = invitedShowsSnapshot.docs
-          .map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-            created_at: doc.data().created_at?.toDate?.()?.toISOString() || new Date().toISOString()
-          }))
-          .filter(show => showIds.includes(show.id)) as Show[];
-
-        setInvitedShows(invitedShowsData);
-      } else {
-        setInvitedShows([]);
+    );
+    
+    // Query for collaborations
+    const collabsQuery = query(
+      collection(db, 'show_collaborators'),
+      where('user_id', '==', user.uid)
+    );
+    
+    const unsubscribeCollabs = onSnapshot(
+      collabsQuery,
+      async (snapshot) => {
+        const showIds = snapshot.docs.map(doc => doc.data().show_id);
+        
+        if (showIds.length > 0) {
+          // Fetch the shows that user is a collaborator on
+          // This approach is necessary for Firebase (not ideal, but working)
+          const allShowsQuery = query(
+            collection(db, 'shows'),
+            where('is_archived', '==', false)
+          );
+          
+          const showsSnapshot = await getDocs(allShowsQuery);
+          const invitedShowsList = showsSnapshot.docs
+            .filter(doc => showIds.includes(doc.id))
+            .map(doc => ({
+              id: doc.id,
+              ...doc.data(),
+              created_at: doc.data().created_at?.toDate?.()?.toISOString() || new Date().toISOString()
+            })) as Show[];
+          
+          setInvitedShows(invitedShowsList);
+        } else {
+          setInvitedShows([]);
+        }
+      },
+      (err) => {
+        console.error('Error fetching collaborations:', err);
+        // Don't set loading or error state here as it's secondary data
       }
-    } catch (err) {
-      console.error('Error fetching shows:', err);
-      setError('Failed to fetch shows. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    );
+    
+    // Cleanup
+    return () => {
+      unsubscribeShows();
+      unsubscribeCollabs();
+    };
+  }, [user, authLoading]);
 
   // Filter shows based on search query
   const filteredPersonalShows = shows.filter(show =>
@@ -153,9 +165,8 @@ export function Dashboard() {
         is_archived: true,
         updated_at: serverTimestamp()
       });
-
-      // Refresh the shows list
-      fetchShows();
+      
+      // The shows list will automatically update via the snapshot listener
       router.push('/archive');
     } catch (error) {
       console.error('Error archiving show:', error);
@@ -167,18 +178,11 @@ export function Dashboard() {
 
   const handleCreateShow = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.title.trim()) return;
+    if (!formData.title.trim() || !user) return;
 
     try {
       setIsCreating(true);
       setError(null);
-
-      const user = auth.currentUser;
-      
-      if (!user) {
-        router.push('/auth/login');
-        return;
-      }
 
       // Create a new show document in Firestore
       const showRef = await addDoc(collection(db, 'shows'), {
@@ -201,14 +205,9 @@ export function Dashboard() {
         is_template: false,
       });
       setIsCreateModalOpen(false);
-
-      // Refresh shows list
-      fetchShows();
       
       // Navigate to the new show
-      if (showRef.id) {
-        router.push(`/show/${showRef.id}`);
-      }
+      router.push(`/show/${showRef.id}`);
     } catch (err) {
       console.error('Error creating show:', err);
       setError('Failed to create show. Please try again.');
@@ -217,100 +216,7 @@ export function Dashboard() {
     }
   };
 
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      router.push('/auth/login');
-    } catch (error) {
-      console.error('Error logging out:', error);
-      alert('Failed to log out. Please try again.');
-    }
-  };
-
-  React.useEffect(() => {
-    // Set up auth state listener
-    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        fetchShows();
-      } else {
-        router.push('/auth/login');
-      }
-    });
-
-    // Set up real-time listeners for shows
-    let unsubscribeShows: (() => void) | null = null;
-    let unsubscribeInvited: (() => void) | null = null;
-
-    const setupRealtimeListeners = async () => {
-      const user = auth.currentUser;
-      if (!user) return;
-
-      // Listen for changes to owned shows
-      const showsQuery = query(
-        collection(db, 'shows'),
-        where('user_id', '==', user.uid),
-        where('is_archived', '==', false),
-        orderBy('created_at', 'desc')
-      );
-
-      unsubscribeShows = onSnapshot(showsQuery, (snapshot) => {
-        const ownedShows = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          created_at: doc.data().created_at?.toDate?.()?.toISOString() || new Date().toISOString()
-        })) as Show[];
-        
-        setShows(ownedShows);
-      }, (error) => {
-        console.error('Error in shows listener:', error);
-      });
-
-      // For invited shows, we need a different approach since we can't directly query with 'in'
-      // This is a simplified approach - in a production app, you might want to use a more efficient method
-      const collaborationsQuery = query(
-        collection(db, 'show_collaborators'),
-        where('user_id', '==', user.uid)
-      );
-
-      unsubscribeInvited = onSnapshot(collaborationsQuery, async (snapshot) => {
-        const showIds = snapshot.docs.map(doc => doc.data().show_id);
-        
-        if (showIds.length > 0) {
-          // Fetch all non-archived shows and filter client-side
-          const invitedShowsQuery = query(
-            collection(db, 'shows'),
-            where('is_archived', '==', false)
-          );
-
-          const invitedShowsSnapshot = await getDocs(invitedShowsQuery);
-          const invitedShowsData = invitedShowsSnapshot.docs
-            .map(doc => ({
-              id: doc.id,
-              ...doc.data(),
-              created_at: doc.data().created_at?.toDate?.()?.toISOString() || new Date().toISOString()
-            }))
-            .filter(show => showIds.includes(show.id)) as Show[];
-
-          setInvitedShows(invitedShowsData);
-        } else {
-          setInvitedShows([]);
-        }
-      }, (error) => {
-        console.error('Error in collaborations listener:', error);
-      });
-    };
-
-    setupRealtimeListeners();
-
-    // Cleanup function
-    return () => {
-      unsubscribeAuth();
-      if (unsubscribeShows) unsubscribeShows();
-      if (unsubscribeInvited) unsubscribeInvited();
-    };
-  }, []);
-
-  if (isLoading) {
+  if (authLoading || isLoading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
         <div className="text-center">
@@ -343,38 +249,39 @@ export function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="px-4 py-8 mx-auto max-w-7xl sm:px-6 lg:px-8">
         <div className="flex justify-between items-center mb-8">
           <div className="flex items-center space-x-4">
             <button
               onClick={() => setIsCreateModalOpen(true)}
               className="flex items-center px-4 py-2 text-white bg-blue-600 rounded-md transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
             >
-              <Plus className="w-5 h-5 mr-2" />
+              <Plus className="mr-2 w-5 h-5" />
               Create Show
             </button>
           </div>
           
-          <div className="flex items-center gap-2">
+          <div className="flex gap-2 items-center">
             <Link
               href="/settings"
-              className="p-2 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors"
+              className="p-2 text-gray-600 transition-colors hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
             >
               <Settings className="w-5 h-5" />
             </Link>
           </div>
         </div>
 
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold">Recent Shows</h2>
           <Link
             href="/settings"
-            className="text-gray-500 hover:text-gray-700 transition-colors"
+            className="text-gray-500 transition-colors hover:text-gray-700"
           >
             <Settings className="w-5 h-5" />
           </Link>
         </div>
 
+        {/* PendingInvitations component will handle fetching its own data */}
         <div className="mb-6">
           <PendingInvitations />
         </div>
@@ -383,7 +290,7 @@ export function Dashboard() {
           <input
             type="text"
             placeholder="Search shows..."
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="py-2 pr-4 pl-10 w-full text-gray-900 bg-white rounded-md border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -405,74 +312,74 @@ export function Dashboard() {
 
         {/* Personal Shows */}
         <div className="mb-12">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">Your Shows</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredPersonalShows.map((show) => (
-              <div
-                key={show.id}
-                className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden"
-              >
-                <div className="p-6">
-                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-                    {show.title}
-                  </h3>
-                  <div className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                    {new Date(show.created_at).toLocaleDateString()} • {show.total_cues} cues
-                  </div>
-                  <div className="flex flex-col space-y-2">
-                    <button
-                      onClick={() => handleViewCueList(show.id)}
-                      className="w-full px-4 py-2 text-white bg-blue-600 rounded-md transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-                    >
-                      View Cue List
-                    </button>
-                    <button
-                      onClick={() => handleArchiveShow(show.id)}
-                      disabled={archivingShowId === show.id}
-                      className="flex items-center justify-center w-full px-4 py-2 text-white bg-red-600 rounded-md transition-colors hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <Archive className="w-4 h-4 mr-2" />
-                      {archivingShowId === show.id ? 'Archiving...' : 'Archive Show'}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {filteredPersonalShows.length === 0 && (
-            <div className="py-12 text-center">
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-                No personal shows found
-              </h3>
-              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                {searchQuery ? 'Try a different search term' : 'Create your first show to get started'}
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* Invited Shows */}
-        {invitedShows.length > 0 && (
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">Invited Shows</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredInvitedShows.map((show) => (
+          <h2 className="mb-6 text-xl font-semibold text-gray-900 dark:text-white">Your Shows</h2>
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {filteredPersonalShows.length > 0 ? (
+              filteredPersonalShows.map((show) => (
                 <div
                   key={show.id}
-                  className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden border-l-4 border-green-500"
+                  className="overflow-hidden bg-white rounded-lg shadow-md dark:bg-gray-800"
                 >
                   <div className="p-6">
-                    <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                    <h3 className="mb-2 text-xl font-semibold text-gray-900 dark:text-white">
                       {show.title}
                     </h3>
-                    <div className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                    <div className="mb-4 text-sm text-gray-600 dark:text-gray-400">
                       {new Date(show.created_at).toLocaleDateString()} • {show.total_cues} cues
                     </div>
                     <div className="flex flex-col space-y-2">
                       <button
                         onClick={() => handleViewCueList(show.id)}
-                        className="w-full px-4 py-2 text-white bg-blue-600 rounded-md transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                        className="px-4 py-2 w-full text-white bg-blue-600 rounded-md transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                      >
+                        View Cue List
+                      </button>
+                      <button
+                        onClick={() => handleArchiveShow(show.id)}
+                        disabled={archivingShowId === show.id}
+                        className="flex justify-center items-center px-4 py-2 w-full text-white bg-red-600 rounded-md transition-colors hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Archive className="mr-2 w-4 h-4" />
+                        {archivingShowId === show.id ? 'Archiving...' : 'Archive Show'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="col-span-1 py-12 text-center md:col-span-2 lg:col-span-3">
+                <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+                  No personal shows found
+                </h3>
+                <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                  {searchQuery ? 'Try a different search term' : 'Create your first show to get started'}
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Invited Shows */}
+        {filteredInvitedShows.length > 0 && (
+          <div>
+            <h2 className="mb-6 text-xl font-semibold text-gray-900 dark:text-white">Invited Shows</h2>
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {filteredInvitedShows.map((show) => (
+                <div
+                  key={show.id}
+                  className="overflow-hidden bg-white rounded-lg border-l-4 border-green-500 shadow-md dark:bg-gray-800"
+                >
+                  <div className="p-6">
+                    <h3 className="mb-2 text-xl font-semibold text-gray-900 dark:text-white">
+                      {show.title}
+                    </h3>
+                    <div className="mb-4 text-sm text-gray-600 dark:text-gray-400">
+                      {new Date(show.created_at).toLocaleDateString()} • {show.total_cues} cues
+                    </div>
+                    <div className="flex flex-col space-y-2">
+                      <button
+                        onClick={() => handleViewCueList(show.id)}
+                        className="px-4 py-2 w-full text-white bg-blue-600 rounded-md transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                       >
                         View Cue List
                       </button>
@@ -492,15 +399,15 @@ export function Dashboard() {
                 <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
               </div>
 
-              <div className="inline-block overflow-hidden text-left align-bottom bg-white dark:bg-gray-900 rounded-lg shadow-xl transition-all transform sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+              <div className="inline-block overflow-hidden text-left align-bottom bg-white rounded-lg shadow-xl transition-all transform dark:bg-gray-900 sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
                 <form onSubmit={handleCreateShow}>
                   <div className="px-6 pt-6 pb-4">
-                    <h3 className="text-2xl font-semibold text-gray-900 dark:text-white mb-6">
+                    <h3 className="mb-6 text-2xl font-semibold text-gray-900 dark:text-white">
                       Create New Show
                     </h3>
                     <div className="space-y-6">
                       <div>
-                        <label htmlFor="title" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        <label htmlFor="title" className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
                           Title
                         </label>
                         <input
@@ -508,47 +415,47 @@ export function Dashboard() {
                           id="title"
                           required
                           placeholder="Enter show title"
-                          className="block w-full rounded-md border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:focus:border-blue-400 dark:focus:ring-blue-400 placeholder-gray-400 dark:placeholder-gray-500"
+                          className="block w-full placeholder-gray-400 text-gray-900 bg-gray-50 rounded-md border-gray-300 shadow-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white focus:border-blue-500 focus:ring-blue-500 dark:focus:border-blue-400 dark:focus:ring-blue-400 dark:placeholder-gray-500"
                           value={formData.title}
                           onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
                         />
                       </div>
                       <div>
-                        <label htmlFor="description" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        <label htmlFor="description" className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
                           Description
                         </label>
                         <textarea
                           id="description"
                           rows={3}
                           placeholder="Enter show description"
-                          className="block w-full rounded-md border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:focus:border-blue-400 dark:focus:ring-blue-400 placeholder-gray-400 dark:placeholder-gray-500"
+                          className="block w-full placeholder-gray-400 text-gray-900 bg-gray-50 rounded-md border-gray-300 shadow-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white focus:border-blue-500 focus:ring-blue-500 dark:focus:border-blue-400 dark:focus:ring-blue-400 dark:placeholder-gray-500"
                           value={formData.description}
                           onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
                         />
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <label htmlFor="date" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          <label htmlFor="date" className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
                             Date
                           </label>
                           <input
                             type="date"
                             id="date"
                             required
-                            className="block w-full rounded-md border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:focus:border-blue-400 dark:focus:ring-blue-400"
+                            className="block w-full text-gray-900 bg-gray-50 rounded-md border-gray-300 shadow-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white focus:border-blue-500 focus:ring-blue-500 dark:focus:border-blue-400 dark:focus:ring-blue-400"
                             value={formData.date}
                             onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
                           />
                         </div>
                         <div>
-                          <label htmlFor="time" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          <label htmlFor="time" className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
                             Time
                           </label>
                           <input
                             type="time"
                             id="time"
                             required
-                            className="block w-full rounded-md border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:focus:border-blue-400 dark:focus:ring-blue-400"
+                            className="block w-full text-gray-900 bg-gray-50 rounded-md border-gray-300 shadow-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white focus:border-blue-500 focus:ring-blue-500 dark:focus:border-blue-400 dark:focus:ring-blue-400"
                             value={formData.time}
                             onChange={(e) => setFormData(prev => ({ ...prev, time: e.target.value }))}
                           />
@@ -558,7 +465,7 @@ export function Dashboard() {
                         <input
                           type="checkbox"
                           id="is_template"
-                          className="h-4 w-4 text-blue-600 dark:text-blue-400 rounded border-gray-300 dark:border-gray-600 focus:ring-blue-500 dark:focus:ring-blue-400"
+                          className="w-4 h-4 text-blue-600 rounded border-gray-300 dark:text-blue-400 dark:border-gray-600 focus:ring-blue-500 dark:focus:ring-blue-400"
                           checked={formData.is_template}
                           onChange={(e) => setFormData(prev => ({ ...prev, is_template: e.target.checked }))}
                         />
@@ -568,11 +475,11 @@ export function Dashboard() {
                       </div>
                     </div>
                   </div>
-                  <div className="px-6 py-4 flex justify-end space-x-2">
+                  <div className="flex justify-end px-6 py-4 space-x-2">
                     <button
                       type="button"
                       onClick={() => setIsCreateModalOpen(false)}
-                      className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+                      className="px-4 py-2 text-sm font-medium text-gray-700 bg-white rounded-md border border-gray-300 dark:text-gray-300 dark:bg-gray-800 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
                     >
                       Cancel
                     </button>
