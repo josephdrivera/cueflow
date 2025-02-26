@@ -18,7 +18,9 @@ export default function AuthCallbackPage() {
         const next = searchParams.get('next') || '/dashboard';
         
         if (!code) {
-          throw new Error('No code provided in the URL');
+          console.log('No code provided in the URL, redirecting to login');
+          router.push('/auth/login?error=' + encodeURIComponent('Authentication failed: No code provided'));
+          return;
         }
 
         setVerifying(true);
@@ -49,10 +51,20 @@ export default function AuthCallbackPage() {
         router.push(next);
       } catch (error) {
         console.error('Error in auth callback:', error);
-        setError(error.message);
+        // Safely handle different error types
+        let errorMessage = 'Authentication failed';
+        
+        if (error instanceof Error) {
+          errorMessage = error.message;
+        } else if (typeof error === 'object' && error !== null && 'message' in error) {
+          errorMessage = error.message as string;
+        }
+        
+        setError(errorMessage);
+        
         // Wait a bit before redirecting on error
         setTimeout(() => {
-          router.push('/auth/login?error=' + encodeURIComponent(error.message));
+          router.push('/auth/login?error=' + encodeURIComponent(errorMessage));
         }, 2000);
       } finally {
         setVerifying(false);

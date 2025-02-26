@@ -18,20 +18,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <link
-          rel="preload"
-          href="/fonts/GeistVF.woff"
-          as="font"
-          type="font/woff"
-          crossOrigin="anonymous"
-        />
-        <link
-          rel="preload"
-          href="/fonts/GeistMonoVF.woff"
-          as="font"
-          type="font/woff"
-          crossOrigin="anonymous"
-        />
+        {/* Font preloading removed as we're using Google Fonts */}
       </head>
       <body
         className={clsx(
@@ -39,6 +26,7 @@ export default function RootLayout({
           geistSans.variable,
           geistMono.variable
         )}
+        suppressHydrationWarning
       >
         <AppRouterCacheProvider>
           <NextThemeProvider

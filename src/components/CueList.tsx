@@ -3,13 +3,71 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Plus, Settings } from 'lucide-react';
-import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
 import { CueModal } from './CueModal';
 import { Cue } from '../types/cue';
+import { cn } from "@/lib/utils";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 interface CueListProps {
   showId: string;
   cueListId?: string;
+}
+
+// Sortable cue row component
+function SortableCueRow({ cue, index, provided }: { 
+  cue: Cue; 
+  index: number;
+  provided: any;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+  } = useSortable({ id: cue.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <tr 
+      ref={setNodeRef} 
+      style={style} 
+      className="border-b border-gray-200 cursor-move dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"
+      {...attributes}
+      {...listeners}
+    >
+      <td className="px-4 py-3">{cue.cue_number}</td>
+      <td className="px-4 py-3">{cue.start_time}</td>
+      <td className="px-4 py-3">{cue.run_time}</td>
+      <td className="px-4 py-3">{cue.end_time}</td>
+      <td className="px-4 py-3">{cue.activity}</td>
+      <td className="px-4 py-3">{cue.graphics || '-'}</td>
+      <td className="px-4 py-3">{cue.video || '-'}</td>
+      <td className="px-4 py-3">{cue.audio || '-'}</td>
+      <td className="px-4 py-3">{cue.lighting || '-'}</td>
+      <td className="px-4 py-3">{cue.notes || '-'}</td>
+    </tr>
+  );
 }
 
 export function CueList({ showId, cueListId }: CueListProps) {
@@ -19,14 +77,29 @@ export function CueList({ showId, cueListId }: CueListProps) {
   const [error, setError] = useState<string | null>(null);
   const [totalRunningTime, setTotalRunningTime] = useState<string>('0:00');
 
-  const handleDragEnd = (result: DropResult) => {
-    if (!result.destination) return;
+  // Set up sensors for drag and drop
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
-    const items = Array.from(cues);
-    const [reorderedItem] = items.splice(result.source.index, 1);
-    items.splice(result.destination.index, 0, reorderedItem);
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    
+    if (!over || active.id === over.id) {
+      return;
+    }
 
-    setCues(items);
+    setCues((items) => {
+      const oldIndex = items.findIndex(item => item.id === active.id);
+      const newIndex = items.findIndex(item => item.id === over.id);
+      
+      return arrayMove(items, oldIndex, newIndex);
+    });
+
+    // You can add database update here if needed
   };
 
   useEffect(() => {
@@ -111,62 +184,51 @@ export function CueList({ showId, cueListId }: CueListProps) {
           </div>
         </div>
 
-        <DragDropContext onDragEnd={handleDragEnd}>
-          <div className="overflow-x-auto w-full bg-white rounded-lg border border-gray-200 shadow dark:bg-gray-800 dark:border-gray-700">
-            <Droppable droppableId="cues">
-              {(provided) => (
-                <table className="min-w-full text-gray-700 dark:text-gray-300" {...provided.droppableProps} ref={provided.innerRef}>
-                  <thead>
-                    <tr className="bg-gray-50 border-b border-gray-200 dark:border-gray-700 dark:bg-gray-800">
-                      <th className="px-4 py-3 text-left">Cue ID</th>
-                      <th className="px-4 py-3 text-left">Start Time</th>
-                      <th className="px-4 py-3 text-left">Run Time</th>
-                      <th className="px-4 py-3 text-left">End Time</th>
-                      <th className="px-4 py-3 text-left">Activity</th>
-                      <th className="px-4 py-3 text-left">Graphics</th>
-                      <th className="px-4 py-3 text-left">Video</th>
-                      <th className="px-4 py-3 text-left">Audio</th>
-                      <th className="px-4 py-3 text-left">Lighting</th>
-                      <th className="px-4 py-3 text-left">Notes</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {cues.map((cue, index) => (
-                      <Draggable key={cue.id} draggableId={cue.id} index={index}>
-                        {(provided) => (
-                          <tr
-                            ref={provided.innerRef}
-                            {...provided.draggableProps}
-                            {...provided.dragHandleProps}
-                            className="border-b border-gray-200 cursor-move dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"
-                          >
-                            <td className="px-4 py-3">{cue.cue_number}</td>
-                            <td className="px-4 py-3">{cue.start_time}</td>
-                            <td className="px-4 py-3">{cue.run_time}</td>
-                            <td className="px-4 py-3">{cue.end_time}</td>
-                            <td className="px-4 py-3">{cue.activity}</td>
-                            <td className="px-4 py-3">{cue.graphics || '-'}</td>
-                            <td className="px-4 py-3">{cue.video || '-'}</td>
-                            <td className="px-4 py-3">{cue.audio || '-'}</td>
-                            <td className="px-4 py-3">{cue.lighting || '-'}</td>
-                            <td className="px-4 py-3">{cue.notes || '-'}</td>
-                          </tr>
-                        )}
-                      </Draggable>
-                    ))}
-                    {provided.placeholder}
-                  </tbody>
-                </table>
-              )}
-            </Droppable>
+        <div className="overflow-x-auto w-full bg-white rounded-lg border border-gray-200 shadow dark:bg-gray-800 dark:border-gray-700">
+          <DndContext 
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <table className="min-w-full text-gray-700 dark:text-gray-300">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200 dark:border-gray-700 dark:bg-gray-800">
+                  <th className="px-4 py-3 text-left">Cue ID</th>
+                  <th className="px-4 py-3 text-left">Start Time</th>
+                  <th className="px-4 py-3 text-left">Run Time</th>
+                  <th className="px-4 py-3 text-left">End Time</th>
+                  <th className="px-4 py-3 text-left">Activity</th>
+                  <th className="px-4 py-3 text-left">Graphics</th>
+                  <th className="px-4 py-3 text-left">Video</th>
+                  <th className="px-4 py-3 text-left">Audio</th>
+                  <th className="px-4 py-3 text-left">Lighting</th>
+                  <th className="px-4 py-3 text-left">Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                <SortableContext 
+                  items={cues.map(cue => cue.id)} 
+                  strategy={verticalListSortingStrategy}
+                >
+                  {cues.map((cue, index) => (
+                    <SortableCueRow
+                      key={cue.id}
+                      cue={cue}
+                      index={index}
+                      provided={{}}
+                    />
+                  ))}
+                </SortableContext>
+              </tbody>
+            </table>
+          </DndContext>
 
-            <div className="flex justify-between px-4 py-3 text-gray-700 bg-gray-50 border-t border-gray-200 dark:border-gray-700 dark:text-gray-300 dark:bg-gray-800">
-              <div>Total Cues: {cues.length}</div>
-              <div>Total Running Time: {totalRunningTime}</div>
-              <div>Current Time: {new Date().toLocaleDateString()}</div>
-            </div>
+          <div className="flex justify-between px-4 py-3 text-gray-700 bg-gray-50 border-t border-gray-200 dark:border-gray-700 dark:text-gray-300 dark:bg-gray-800">
+            <div>Total Cues: {cues.length}</div>
+            <div>Total Running Time: {totalRunningTime}</div>
+            <div>Current Time: {new Date().toLocaleDateString()}</div>
           </div>
-        </DragDropContext>
+        </div>
       </div>
 
       {isModalOpen && (
