@@ -7,9 +7,9 @@ The application appears to be mid-migration from Supabase to Firebase, with some
 
 ### 1. Authentication
 - [x] Set up Firebase Authentication (basic setup appears complete)
-- [ ] Replace all Supabase auth calls with Firebase equivalents
-- [ ] Update session handling in middleware.ts
-- [ ] Test auth flow: login, logout, password reset, email verification
+- [x] Replace all Supabase auth calls with Firebase equivalents
+- [x] Update session handling in middleware.ts
+- [x] Test auth flow: login, logout, password reset, email verification
 
 ### 2. Database
 - [ ] Complete migration of collections in Firestore

@@ -1,8 +1,8 @@
-import { NextResponse, type NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 
 export async function middleware(request: NextRequest) {
-  // Get the path
+  // Get the path being requested
   const path = request.nextUrl.pathname;
   
   // Public paths that don't require authentication
@@ -16,17 +16,18 @@ export async function middleware(request: NextRequest) {
     '/'
   ];
   
-  // API paths that don't require auth checks
+  // API paths that don't require auth checks in middleware
   const PUBLIC_API_PATHS = [
     '/api/auth/callback',
-    '/api/auth/logout'
+    '/api/auth/logout',
+    '/api/auth/webhook'
   ];
   
-  // Static paths
+  // Static paths and resources
   if (
     path.startsWith('/_next') || 
     path.startsWith('/favicon.ico') ||
-    path.startsWith('/public')
+    path.includes('.')
   ) {
     return NextResponse.next();
   }
@@ -39,18 +40,18 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
   
-  // Get the session cookie
+  // Check for session cookie
   const sessionCookie = request.cookies.get('__session')?.value;
   
   if (!sessionCookie) {
     // Redirect to login if no session cookie
     const url = new URL('/auth/login', request.url);
-    url.searchParams.set('redirectedFrom', path);
+    url.searchParams.set('redirectedFrom', encodeURIComponent(path));
     return NextResponse.redirect(url);
   }
   
-  // If we have a session cookie, allow the request to proceed
-  // The actual verification will happen in the Server Component or Action
+  // Let the request proceed - actual verification happens in server components or actions
+  // This is because we can't use Firebase Admin SDK in Edge middleware
   return NextResponse.next();
 }
 
