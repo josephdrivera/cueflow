@@ -86,6 +86,7 @@ export function Dashboard() {
 
       if (collabError) {
         console.error('Failed to fetch collaborations:', collabError);
+        console.error('Error details:', JSON.stringify(collabError));
         setInvitedShows([]);
       } else {
         const showIds = collaborations?.map(collab => collab.show_id) || [];
