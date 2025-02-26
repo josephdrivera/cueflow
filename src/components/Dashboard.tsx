@@ -1,11 +1,25 @@
 'use client';
 
 import React from 'react';
-import { supabase } from '@/lib/supabase';
+import { auth, db } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Settings, Plus, Archive } from 'lucide-react';
 import PendingInvitations from './PendingInvitations';
+import { 
+  collection, 
+  query, 
+  where, 
+  getDocs, 
+  doc, 
+  updateDoc, 
+  addDoc, 
+  onSnapshot,
+  orderBy,
+  Timestamp,
+  serverTimestamp
+} from 'firebase/firestore';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 
 interface Show {
   id: string;
@@ -51,61 +65,60 @@ export function Dashboard() {
       setError(null);
 
       // Get current user
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      const user = auth.currentUser;
       
-      if (userError) {
-        console.error('Auth error:', userError);
-        throw userError;
-      }
-
       if (!user) {
         router.push('/auth/login');
         return;
       }
 
       // Fetch shows where user is the owner
-      const { data: ownedShows, error: showsError } = await supabase
-        .from('shows')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('is_archived', false)
-        .order('created_at', { ascending: false });
+      const showsQuery = query(
+        collection(db, 'shows'),
+        where('user_id', '==', user.uid),
+        where('is_archived', '==', false),
+        orderBy('created_at', 'desc')
+      );
 
-      if (showsError) {
-        console.error('Failed to fetch owned shows:', showsError);
-        setShows([]);
-      } else {
-        setShows(ownedShows || []);
-      }
+      const showsSnapshot = await getDocs(showsQuery);
+      const ownedShows = showsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        created_at: doc.data().created_at?.toDate?.()?.toISOString() || new Date().toISOString()
+      })) as Show[];
+      
+      setShows(ownedShows);
 
       // Fetch shows where user is a collaborator
-      const { data: collaborations, error: collabError } = await supabase
-        .from('show_collaborators')
-        .select('show_id')
-        .eq('user_id', user.id);
+      const collaborationsQuery = query(
+        collection(db, 'show_collaborators'),
+        where('user_id', '==', user.uid)
+      );
 
-      if (collabError) {
-        console.error('Failed to fetch collaborations:', collabError);
-        console.error('Error details:', JSON.stringify(collabError));
-        setInvitedShows([]);
+      const collaborationsSnapshot = await getDocs(collaborationsQuery);
+      const showIds = collaborationsSnapshot.docs.map(doc => doc.data().show_id);
+
+      if (showIds.length > 0) {
+        // Firebase doesn't support direct 'in' queries with arrays, so we need to use multiple queries or a different approach
+        // For simplicity, we'll fetch all non-archived shows and filter client-side
+        const invitedShowsQuery = query(
+          collection(db, 'shows'),
+          where('is_archived', '==', false),
+          orderBy('created_at', 'desc')
+        );
+
+        const invitedShowsSnapshot = await getDocs(invitedShowsQuery);
+        const invitedShowsData = invitedShowsSnapshot.docs
+          .map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            created_at: doc.data().created_at?.toDate?.()?.toISOString() || new Date().toISOString()
+          }))
+          .filter(show => showIds.includes(show.id)) as Show[];
+
+        setInvitedShows(invitedShowsData);
       } else {
-        const showIds = collaborations?.map(collab => collab.show_id) || [];
-
-        if (showIds.length > 0) {
-          const { data: invitedShowsData, error: invitedError } = await supabase
-            .from('shows')
-            .select('*')
-            .in('id', showIds)
-            .eq('is_archived', false)
-            .order('created_at', { ascending: false });
-
-          if (invitedError) {
-            console.error('Failed to fetch invited shows:', invitedError);
-            setInvitedShows([]);
-          } else {
-            setInvitedShows(invitedShowsData || []);
-          }
-        }
+        setInvitedShows([]);
       }
     } catch (err) {
       console.error('Error fetching shows:', err);
@@ -135,14 +148,11 @@ export function Dashboard() {
       setArchivingShowId(showId);
       
       // Update the show's archived status
-      const { error: archiveError } = await supabase
-        .from('shows')
-        .update({ is_archived: true })
-        .eq('id', showId);
-
-      if (archiveError) {
-        throw archiveError;
-      }
+      const showRef = doc(db, 'shows', showId);
+      await updateDoc(showRef, { 
+        is_archived: true,
+        updated_at: serverTimestamp()
+      });
 
       // Refresh the shows list
       fetchShows();
@@ -163,27 +173,24 @@ export function Dashboard() {
       setIsCreating(true);
       setError(null);
 
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      const user = auth.currentUser;
       
-      if (userError) throw userError;
       if (!user) {
         router.push('/auth/login');
         return;
       }
 
-      const { data: show, error: createError } = await supabase
-        .from('shows')
-        .insert({
-          title: formData.title.trim(),
-          description: formData.description.trim(),
-          user_id: user.id,
-          is_template: formData.is_template,
-          is_archived: false
-        })
-        .select()
-        .single();
-
-      if (createError) throw createError;
+      // Create a new show document in Firestore
+      const showRef = await addDoc(collection(db, 'shows'), {
+        title: formData.title.trim(),
+        description: formData.description.trim(),
+        user_id: user.uid,
+        is_template: formData.is_template,
+        is_archived: false,
+        created_at: serverTimestamp(),
+        updated_at: serverTimestamp(),
+        total_cues: 0
+      });
 
       // Reset form and close modal
       setFormData({
@@ -199,8 +206,8 @@ export function Dashboard() {
       fetchShows();
       
       // Navigate to the new show
-      if (show) {
-        router.push(`/show/${show.id}`);
+      if (showRef.id) {
+        router.push(`/show/${showRef.id}`);
       }
     } catch (err) {
       console.error('Error creating show:', err);
@@ -212,8 +219,7 @@ export function Dashboard() {
 
   const handleLogout = async () => {
     try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
+      await signOut(auth);
       router.push('/auth/login');
     } catch (error) {
       console.error('Error logging out:', error);
@@ -222,22 +228,86 @@ export function Dashboard() {
   };
 
   React.useEffect(() => {
-    const setupSubscription = async () => {
-      const { data: { subscription } } = await supabase.auth.onAuthStateChange((event, session) => {
-        if (event === 'SIGNED_IN') {
-          fetchShows();
-        } else if (event === 'SIGNED_OUT') {
-          router.push('/auth/login');
-        }
+    // Set up auth state listener
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        fetchShows();
+      } else {
+        router.push('/auth/login');
+      }
+    });
+
+    // Set up real-time listeners for shows
+    let unsubscribeShows: (() => void) | null = null;
+    let unsubscribeInvited: (() => void) | null = null;
+
+    const setupRealtimeListeners = async () => {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      // Listen for changes to owned shows
+      const showsQuery = query(
+        collection(db, 'shows'),
+        where('user_id', '==', user.uid),
+        where('is_archived', '==', false),
+        orderBy('created_at', 'desc')
+      );
+
+      unsubscribeShows = onSnapshot(showsQuery, (snapshot) => {
+        const ownedShows = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          created_at: doc.data().created_at?.toDate?.()?.toISOString() || new Date().toISOString()
+        })) as Show[];
+        
+        setShows(ownedShows);
+      }, (error) => {
+        console.error('Error in shows listener:', error);
       });
 
-      return () => {
-        subscription?.unsubscribe();
-      };
+      // For invited shows, we need a different approach since we can't directly query with 'in'
+      // This is a simplified approach - in a production app, you might want to use a more efficient method
+      const collaborationsQuery = query(
+        collection(db, 'show_collaborators'),
+        where('user_id', '==', user.uid)
+      );
+
+      unsubscribeInvited = onSnapshot(collaborationsQuery, async (snapshot) => {
+        const showIds = snapshot.docs.map(doc => doc.data().show_id);
+        
+        if (showIds.length > 0) {
+          // Fetch all non-archived shows and filter client-side
+          const invitedShowsQuery = query(
+            collection(db, 'shows'),
+            where('is_archived', '==', false)
+          );
+
+          const invitedShowsSnapshot = await getDocs(invitedShowsQuery);
+          const invitedShowsData = invitedShowsSnapshot.docs
+            .map(doc => ({
+              id: doc.id,
+              ...doc.data(),
+              created_at: doc.data().created_at?.toDate?.()?.toISOString() || new Date().toISOString()
+            }))
+            .filter(show => showIds.includes(show.id)) as Show[];
+
+          setInvitedShows(invitedShowsData);
+        } else {
+          setInvitedShows([]);
+        }
+      }, (error) => {
+        console.error('Error in collaborations listener:', error);
+      });
     };
 
-    setupSubscription();
-    fetchShows();
+    setupRealtimeListeners();
+
+    // Cleanup function
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeShows) unsubscribeShows();
+      if (unsubscribeInvited) unsubscribeInvited();
+    };
   }, []);
 
   if (isLoading) {

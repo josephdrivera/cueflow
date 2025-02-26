@@ -4,7 +4,8 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { Cue, NewCue } from '../types/cue';
 import { useState, useEffect } from 'react';
 import { generateNextCueNumber, validateCueNumber } from '../utils/cueNumbering';
-import { checkDuplicateCueNumber } from '../services/cueService';
+import { db } from '@/lib/firebase';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 import { TimeInput } from './TimeInput';
 import { RunTimeInput } from './RunTimeInput';
 
