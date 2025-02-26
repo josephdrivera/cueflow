@@ -38,7 +38,8 @@ import {
   getShowInvitations,
   deleteInvitation,
   Collaborator,
-  PendingInvite
+  PendingInvite,
+  InviteData
 } from '@/services/collaboratorService';
 
 interface ShowCollaboratorsProps {
@@ -106,11 +107,13 @@ export function ShowCollaborators({ showId, isOwner }: ShowCollaboratorsProps) {
         return;
       }
       
-      await inviteCollaborator({
+      const inviteData: InviteData = {
         email: inviteEmail,
         show_id: showId,
         can_edit: canEdit
-      });
+      };
+      
+      await inviteCollaborator(inviteData);
       
       setInviteSuccess(`Invitation sent to ${inviteEmail}`);
       setInviteEmail('');
@@ -124,15 +127,15 @@ export function ShowCollaborators({ showId, isOwner }: ShowCollaboratorsProps) {
     }
   };
 
-  const handleRemoveCollaborator = async (userId: string) => {
+  const handleRemoveCollaborator = async (collaboratorId: string) => {
     if (!isOwner || !confirm('Are you sure you want to remove this collaborator?')) {
       return;
     }
     
     try {
-      await removeCollaborator(showId, userId);
+      await removeCollaborator(showId, collaboratorId);
       // Update the collaborators list
-      setCollaborators(collaborators.filter(c => c.user_id !== userId));
+      setCollaborators(collaborators.filter(c => c.id !== collaboratorId));
     } catch (err) {
       console.error('Error removing collaborator:', err);
       setError('Failed to remove collaborator. Please try again.');
@@ -145,7 +148,7 @@ export function ShowCollaborators({ showId, isOwner }: ShowCollaboratorsProps) {
     }
     
     try {
-      await deleteInvitation(invitationId);
+      await deleteInvitation(showId, invitationId);
       // Update the invitations list
       setInvitations(invitations.filter(i => i.id !== invitationId));
     } catch (err) {
@@ -171,13 +174,13 @@ export function ShowCollaborators({ showId, isOwner }: ShowCollaboratorsProps) {
     try {
       await updateCollaboratorPermissions(
         showId,
-        selectedCollaborator.user_id,
+        selectedCollaborator.id,
         canEdit
       );
       
       // Update the collaborators list
       setCollaborators(collaborators.map(c => 
-        c.user_id === selectedCollaborator.user_id
+        c.id === selectedCollaborator.id
           ? { ...c, can_edit: canEdit }
           : c
       ));
@@ -229,7 +232,7 @@ export function ShowCollaborators({ showId, isOwner }: ShowCollaboratorsProps) {
               <React.Fragment key={collaborator.id}>
                 <ListItem
                   secondaryAction={
-                    isOwner && collaborator.user_id !== user?.id && (
+                    isOwner && collaborator.user_id !== user?.uid && (
                       <>
                         <IconButton 
                           edge="end" 
@@ -242,7 +245,7 @@ export function ShowCollaborators({ showId, isOwner }: ShowCollaboratorsProps) {
                         <IconButton 
                           edge="end" 
                           aria-label="delete"
-                          onClick={() => handleRemoveCollaborator(collaborator.user_id)}
+                          onClick={() => handleRemoveCollaborator(collaborator.id)}
                         >
                           <DeleteIcon />
                         </IconButton>
@@ -259,7 +262,7 @@ export function ShowCollaborators({ showId, isOwner }: ShowCollaboratorsProps) {
                     primary={collaborator.profile?.full_name || collaborator.profile?.username || 'Unknown User'}
                     secondary={
                       <>
-                        {collaborator.user_id === user?.id && (
+                        {collaborator.user_id === user?.uid && (
                           <Chip size="small" label="You" sx={{ mr: 1 }} />
                         )}
                         <Chip 

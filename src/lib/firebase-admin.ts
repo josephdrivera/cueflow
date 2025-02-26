@@ -1,21 +1,18 @@
-import { getApps, initializeApp, cert, App } from 'firebase-admin/app';
+// This file is a client-safe wrapper for firebase-admin
+// It will only execute the actual firebase-admin code on the server
+
+import type { App } from 'firebase-admin/app';
 
 // Helper to initialize Firebase Admin once
-export function getFirebaseAdminApp(): App {
-  // Check if Firebase Admin is already initialized
-  const apps = getApps();
-  if (apps.length > 0) {
-    return apps[0];
+export function getFirebaseAdminApp(): App | null {
+  // Only execute on the server side
+  if (typeof window !== 'undefined') {
+    console.warn('Firebase Admin SDK can only be used on the server side');
+    return null;
   }
 
-  // Initialize Firebase Admin with service account
-  const serviceAccount = JSON.parse(
-    process.env.FIREBASE_SERVICE_ACCOUNT_KEY || '{}'
-  );
-
-  return initializeApp({
-    credential: cert(serviceAccount),
-    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  });
+  // Use dynamic import to load the server-side implementation
+  // This prevents the node:process imports from being included in the client bundle
+  const { getFirebaseAdminApp: getServerApp } = require('./firebase-admin-server');
+  return getServerApp();
 }

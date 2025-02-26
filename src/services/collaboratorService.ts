@@ -69,16 +69,38 @@ const convertToPendingInvite = (doc: QueryDocumentSnapshot<DocumentData>): Pendi
 export async function getShowCollaborators(showId: string): Promise<Collaborator[]> {
   try {
     const q = query(
-      collection(db, 'show_collaborators'),
-      where('show_id', '==', showId)
+      collection(db, 'shows', showId, 'collaborators')
     );
     
     const querySnapshot = await getDocs(q);
     
-    // Note: In Firestore, we would need to handle the profile join differently
-    // This is a simplified version that assumes profile data is stored with the collaborator
-    // A more complete solution would involve separate queries for profile data
-    return querySnapshot.docs.map(convertToCollaborator);
+    // Get profile information for each collaborator
+    const collaborators = await Promise.all(
+      querySnapshot.docs.map(async (doc) => {
+        const data = doc.data();
+        const userId = data.user_id;
+        
+        // Get user profile
+        const profileRef = doc(db, 'profiles', userId);
+        const profileSnap = await getDoc(profileRef);
+        
+        let profile = undefined;
+        if (profileSnap.exists()) {
+          profile = profileSnap.data();
+        }
+        
+        return {
+          id: doc.id,
+          show_id: showId,
+          user_id: userId,
+          can_edit: data.can_edit,
+          created_at: data.created_at ? new Date(data.created_at.toDate()).toISOString() : new Date().toISOString(),
+          profile
+        };
+      })
+    );
+    
+    return collaborators;
   } catch (error) {
     console.error('Error fetching collaborators:', error);
     throw error;
@@ -107,8 +129,7 @@ export async function hasShowAccess(showId: string, userId: string): Promise<boo
     
     // Check if user is a collaborator
     const q = query(
-      collection(db, 'show_collaborators'),
-      where('show_id', '==', showId),
+      collection(db, 'shows', showId, 'collaborators'),
       where('user_id', '==', userId)
     );
     
@@ -145,9 +166,9 @@ export async function inviteCollaborator(inviteData: InviteData): Promise<Pendin
     };
     
     // Add the invitation to Firestore
-    const docRef = await addDoc(collection(db, 'show_invitations'), invitationData);
+    const docRef = await addDoc(collection(db, 'shows', inviteData.show_id, 'invitations'), invitationData);
     
-    // Get the show title (would need to be done in a separate query)
+    // Get the show title
     const showDocRef = doc(db, 'shows', inviteData.show_id);
     const showDocSnap = await getDoc(showDocRef);
     
@@ -186,8 +207,7 @@ export async function getShowInvitations(showId: string): Promise<PendingInvite[
     
     // Query for non-expired invitations
     const q = query(
-      collection(db, 'show_invitations'),
-      where('show_id', '==', showId),
+      collection(db, 'shows', showId, 'invitations'),
       where('expires_at', '>=', now)
     );
     
@@ -196,20 +216,30 @@ export async function getShowInvitations(showId: string): Promise<PendingInvite[
     // Get show data for each invitation
     const invitations = await Promise.all(
       querySnapshot.docs.map(async (doc) => {
-        const invitation = convertToPendingInvite(doc);
+        const data = doc.data();
         
         // Get show title
         const showDocRef = doc(db, 'shows', showId);
         const showDocSnap = await getDoc(showDocRef);
         
+        let showTitle = 'Unknown Show';
         if (showDocSnap.exists()) {
           const showData = showDocSnap.data();
-          invitation.show = {
-            title: showData.title
-          };
+          showTitle = showData.title;
         }
         
-        return invitation;
+        return {
+          id: doc.id,
+          show_id: showId,
+          email: data.email,
+          can_edit: data.can_edit,
+          token: data.token,
+          created_at: data.created_at ? new Date(data.created_at.toDate()).toISOString() : new Date().toISOString(),
+          expires_at: data.expires_at ? new Date(data.expires_at.toDate()).toISOString() : new Date(data.expires_at).toISOString(),
+          show: {
+            title: showTitle
+          }
+        };
       })
     );
     
@@ -223,9 +253,9 @@ export async function getShowInvitations(showId: string): Promise<PendingInvite[
 /**
  * Delete a pending invitation
  */
-export async function deleteInvitation(invitationId: string): Promise<void> {
+export async function deleteInvitation(showId: string, invitationId: string): Promise<void> {
   try {
-    const docRef = doc(db, 'show_invitations', invitationId);
+    const docRef = doc(db, 'shows', showId, 'invitations', invitationId);
     await deleteDoc(docRef);
   } catch (error) {
     console.error('Error deleting invitation:', error);
@@ -240,35 +270,61 @@ export async function deleteInvitation(invitationId: string): Promise<void> {
 export async function acceptInvitation(token: string, userId: string): Promise<{ showId: string }> {
   try {
     // Find the invitation by token
-    const q = query(
-      collection(db, 'show_invitations'),
-      where('token', '==', token),
-      where('expires_at', '>=', new Date())
-    );
+    // This requires a query across all shows' invitations collections
+    // In a real implementation, you might want to store invitations in a top-level collection
+    // or use a Cloud Function to handle this
     
-    const querySnapshot = await getDocs(q);
+    // For simplicity, we'll assume we know the showId
+    // In a real implementation, you would need to query across all shows
     
-    if (querySnapshot.empty) {
+    // Find the invitation by token
+    const showsRef = collection(db, 'shows');
+    const showsSnapshot = await getDocs(showsRef);
+    
+    let invitation = null;
+    let showId = '';
+    let invitationId = '';
+    
+    // Loop through all shows to find the invitation
+    for (const showDoc of showsSnapshot.docs) {
+      const invitationsRef = collection(db, 'shows', showDoc.id, 'invitations');
+      const q = query(invitationsRef, where('token', '==', token));
+      const invitationsSnapshot = await getDocs(q);
+      
+      if (!invitationsSnapshot.empty) {
+        invitation = invitationsSnapshot.docs[0].data();
+        showId = showDoc.id;
+        invitationId = invitationsSnapshot.docs[0].id;
+        break;
+      }
+    }
+    
+    if (!invitation) {
       throw new Error('Invitation not found or has expired');
     }
     
-    const invitationDoc = querySnapshot.docs[0];
-    const invitation = invitationDoc.data();
+    // Check if invitation is expired
+    const expiresAt = invitation.expires_at instanceof Date 
+      ? invitation.expires_at 
+      : new Date(invitation.expires_at);
+      
+    if (expiresAt < new Date()) {
+      throw new Error('Invitation has expired');
+    }
     
     // Create the collaborator record
     const collaboratorData = {
-      show_id: invitation.show_id,
       user_id: userId,
       can_edit: invitation.can_edit,
       created_at: serverTimestamp()
     };
     
-    await addDoc(collection(db, 'show_collaborators'), collaboratorData);
+    await addDoc(collection(db, 'shows', showId, 'collaborators'), collaboratorData);
     
     // Delete the invitation
-    await deleteDoc(invitationDoc.ref);
+    await deleteDoc(doc(db, 'shows', showId, 'invitations', invitationId));
     
-    return { showId: invitation.show_id };
+    return { showId };
   } catch (error) {
     console.error('Error accepting invitation:', error);
     throw error;
@@ -278,24 +334,9 @@ export async function acceptInvitation(token: string, userId: string): Promise<{
 /**
  * Remove a collaborator from a show
  */
-export async function removeCollaborator(showId: string, userId: string): Promise<void> {
+export async function removeCollaborator(showId: string, collaboratorId: string): Promise<void> {
   try {
-    // Find the collaborator record
-    const q = query(
-      collection(db, 'show_collaborators'),
-      where('show_id', '==', showId),
-      where('user_id', '==', userId)
-    );
-    
-    const querySnapshot = await getDocs(q);
-    
-    if (querySnapshot.empty) {
-      throw new Error('Collaborator not found');
-    }
-    
-    // Delete all matching collaborator records
-    const deletePromises = querySnapshot.docs.map(doc => deleteDoc(doc.ref));
-    await Promise.all(deletePromises);
+    await deleteDoc(doc(db, 'shows', showId, 'collaborators', collaboratorId));
   } catch (error) {
     console.error('Error removing collaborator:', error);
     throw error;
@@ -307,26 +348,12 @@ export async function removeCollaborator(showId: string, userId: string): Promis
  */
 export async function updateCollaboratorPermissions(
   showId: string, 
-  userId: string, 
+  collaboratorId: string, 
   canEdit: boolean
 ): Promise<void> {
   try {
-    // Find the collaborator record
-    const q = query(
-      collection(db, 'show_collaborators'),
-      where('show_id', '==', showId),
-      where('user_id', '==', userId)
-    );
-    
-    const querySnapshot = await getDocs(q);
-    
-    if (querySnapshot.empty) {
-      throw new Error('Collaborator not found');
-    }
-    
-    // Update the collaborator record
-    const collaboratorDocRef = querySnapshot.docs[0].ref;
-    await updateDoc(collaboratorDocRef, { can_edit: canEdit });
+    const collaboratorRef = doc(db, 'shows', showId, 'collaborators', collaboratorId);
+    await updateDoc(collaboratorRef, { can_edit: canEdit });
   } catch (error) {
     console.error('Error updating collaborator permissions:', error);
     throw error;

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { fetchCollection, insertDocument, updateDocument, deleteDocument } from '@/lib/firebase-db';
 import { ChevronDown, Plus, Edit2, Trash2 } from 'lucide-react';
 
 interface CueList {
@@ -33,23 +33,29 @@ export function CueListManager({ showId, onSelectCueList }: CueListManagerProps)
 
   const fetchCueLists = async () => {
     try {
-      const { data, error } = await supabase
-        .from('day_cue_lists')
-        .select('*')
-        .eq('show_id', showId)
-        .order('date', { ascending: true });
+      const { data, error } = await fetchCollection<CueList>(
+        'day_cue_lists',
+        [{ field: 'show_id', operator: 'eq', value: showId }],
+        [{ field: 'date', direction: 'asc' }]
+      );
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching cue lists:', error);
+        setError('Failed to load cue lists');
+        return;
+      }
 
       if (data) {
         setCueLists(data);
+        
+        // Select the first cue list by default if none is selected
         if (data.length > 0 && !selectedCueList) {
           setSelectedCueList(data[0]);
           onSelectCueList(data[0].id);
         }
       }
     } catch (err) {
-      console.error('Error fetching cue lists:', err);
+      console.error('Error in fetchCueLists:', err);
       setError('Failed to load cue lists');
     }
   };
@@ -83,10 +89,7 @@ export function CueListManager({ showId, onSelectCueList }: CueListManagerProps)
       setIsDeleting(true);
       
       // Delete the cue list
-      const { error: deleteError } = await supabase
-        .from('day_cue_lists')
-        .delete()
-        .eq('id', deleteConfirmation.id);
+      const { error: deleteError } = await deleteDocument('day_cue_lists', deleteConfirmation.id);
 
       if (deleteError) throw deleteError;
 
@@ -136,34 +139,21 @@ export function CueListManager({ showId, onSelectCueList }: CueListManagerProps)
 
       if (editingCueList) {
         // Update existing cue list
-        const { error: archiveError } = await supabase
-          .from('day_cue_lists')
-          .update({
-            name: newName.trim(),
-            date: newDate,
-          })
-          .eq('id', editingCueList.id);
+        const { error: updateError } = await updateDocument('day_cue_lists', editingCueList.id, {
+          name: newName.trim(),
+          date: newDate,
+        });
 
-        if (archiveError) {
-          throw archiveError;
-        }
+        if (updateError) throw updateError;
       } else {
         // Add new cue list
-        const { data, error: createError } = await supabase
-          .from('day_cue_lists')
-          .insert([
-            {
-              show_id: showId,
-              name: newName.trim(),
-              date: newDate,
-            },
-          ])
-          .select()
-          .single();
+        const { data, error: createError } = await insertDocument('day_cue_lists', {
+          show_id: showId,
+          name: newName.trim(),
+          date: newDate,
+        });
 
-        if (createError) {
-          throw createError;
-        }
+        if (createError) throw createError;
         
         // Select the newly created cue list
         if (data) {

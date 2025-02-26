@@ -13,7 +13,7 @@ import {
   CircularProgress,
   Alert
 } from '@mui/material';
-import { supabase } from '@/lib/supabase';
+import { getFirestore, collection, query, where, getDocs } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { acceptInvitation, PendingInvite } from '@/services/collaboratorService';
 
@@ -24,6 +24,7 @@ export default function PendingInvitations() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const db = getFirestore();
 
   useEffect(() => {
     if (!user) return;
@@ -33,37 +34,56 @@ export default function PendingInvitations() {
         setLoading(true);
         
         // Get the user's email
-        const { data: { user: userData }, error: userError } = await supabase.auth.getUser();
+        const userEmail = user.email;
         
-        if (userError) {
-          console.error('Failed to get user data:', userError);
-          setLoading(false);
-          return;  
-        }
-        
-        if (!userData || !userData.email) {
+        if (!userEmail) {
           console.log('No user email available');
           setLoading(false);
           return;  
         }
         
-        // Find pending invitations for this email
-        const { data, error } = await supabase
-          .from('show_invitations')
-          .select(`
-            *,
-            show:show_id(title)
-          `)
-          .eq('email', userData.email.toLowerCase())
-          .gte('expires_at', new Date().toISOString());
+        // Find pending invitations for this email across all shows
+        // This requires querying all shows, which isn't ideal
+        // In a real implementation, you might want to store invitations in a top-level collection
+        
+        const showsRef = collection(db, 'shows');
+        const showsSnapshot = await getDocs(showsRef);
+        
+        const allInvitations: PendingInvite[] = [];
+        const now = new Date();
+        
+        // Loop through all shows to find invitations for this user
+        await Promise.all(showsSnapshot.docs.map(async (showDoc) => {
+          const showId = showDoc.id;
+          const showData = showDoc.data();
           
-        if (error) {
-          console.error('Error fetching invitations:', error);
-          setError('Failed to load invitations');
-          setInvitations([]);  
-        } else {
-          setInvitations(data || []);
-        }
+          const invitationsRef = collection(db, 'shows', showId, 'invitations');
+          const q = query(
+            invitationsRef, 
+            where('email', '==', userEmail.toLowerCase()),
+            where('expires_at', '>=', now)
+          );
+          
+          const invitationsSnapshot = await getDocs(q);
+          
+          invitationsSnapshot.docs.forEach(doc => {
+            const data = doc.data();
+            allInvitations.push({
+              id: doc.id,
+              show_id: showId,
+              email: data.email,
+              can_edit: data.can_edit,
+              token: data.token,
+              created_at: data.created_at ? new Date(data.created_at.toDate()).toISOString() : new Date().toISOString(),
+              expires_at: data.expires_at ? new Date(data.expires_at.toDate()).toISOString() : new Date(data.expires_at).toISOString(),
+              show: {
+                title: showData.title || 'Unnamed Show'
+              }
+            });
+          });
+        }));
+        
+        setInvitations(allInvitations);
       } catch (err) {
         console.error('Error in fetchInvitations:', err);
         setError('Failed to load invitations');
@@ -74,7 +94,7 @@ export default function PendingInvitations() {
     }
     
     fetchInvitations();
-  }, [user]);
+  }, [user, db]);
 
   const handleAcceptInvitation = async (invitation: PendingInvite) => {
     if (!user) return;
@@ -83,7 +103,7 @@ export default function PendingInvitations() {
       setProcessingId(invitation.id);
       setError(null);
       
-      const { showId } = await acceptInvitation(invitation.token, user.id);
+      const { showId } = await acceptInvitation(invitation.token, user.uid);
       
       // Remove this invitation from the list
       setInvitations(invitations.filter(inv => inv.id !== invitation.id));
