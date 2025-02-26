@@ -31,7 +31,7 @@ export default function InvitePage({ params }: InvitePageProps) {
     
     async function acceptUserInvitation() {
       try {
-        const { showId } = await acceptInvitation(token, user.id);
+        const { showId } = await acceptInvitation(token, user.uid);
         setStatus('success');
         
         // Redirect to the show page after a short delay
@@ -100,33 +100,26 @@ export default function InvitePage({ params }: InvitePageProps) {
         {status === 'success' && (
           <>
             <Typography variant="h5" gutterBottom color="primary">
-              Success!
+              Invitation Accepted!
             </Typography>
-            <Typography paragraph>
-              You have successfully joined the show. Redirecting you to the show page...
+            <Typography color="text.secondary" paragraph>
+              You now have access to the show. Redirecting you to the show page...
             </Typography>
-            <Button 
-              variant="contained" 
-              onClick={() => router.push('/')}
-              sx={{ mt: 2 }}
-            >
-              Go to Dashboard
-            </Button>
+            <CircularProgress size={24} />
           </>
         )}
         
         {status === 'error' && (
           <>
-            <Alert severity="error" sx={{ mb: 3 }}>
-              {error || 'Invalid or expired invitation link'}
-            </Alert>
-            <Typography paragraph>
-              The invitation might have expired or has already been accepted.
+            <Typography variant="h5" gutterBottom color="error">
+              Error Accepting Invitation
             </Typography>
+            <Alert severity="error" sx={{ mb: 3, textAlign: 'left' }}>
+              {error || 'The invitation may have expired or been revoked.'}
+            </Alert>
             <Button 
               variant="contained" 
-              onClick={() => router.push('/')}
-              sx={{ mt: 2 }}
+              onClick={() => router.push('/dashboard')}
             >
               Go to Dashboard
             </Button>

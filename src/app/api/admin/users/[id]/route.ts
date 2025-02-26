@@ -1,23 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { getAuth } from 'firebase-admin/auth';
+import { getFirebaseAdminApp } from '@/lib/firebase-admin';
 import { updateUserRole } from '@/lib/auth-helpers';
-
-// Create a Supabase client with admin privileges for server-side operations
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.SUPABASE_SERVICE_ROLE_KEY || '' // This is your service role key, not the anon key
-);
+import { getFirestore } from 'firebase-admin/firestore';
 
 // Helper function to check if the requesting user is an admin
 async function isAdmin(userId: string) {
-  const { data, error } = await supabaseAdmin
-    .from('profiles')
-    .select('role')
-    .eq('id', userId)
-    .single();
+  const adminApp = getFirebaseAdminApp();
+  const db = getFirestore(adminApp);
   
-  if (error || !data) return false;
-  return data.role === 'admin';
+  const profileDoc = await db.collection('profiles').doc(userId).get();
+  
+  if (!profileDoc.exists) return false;
+  const data = profileDoc.data();
+  return data?.role === 'admin';
 }
 
 export async function PATCH(
@@ -29,14 +25,25 @@ export async function PATCH(
     const targetUserId = params.id;
     
     // Get the current user's session
-    const { data: { session } } = await supabaseAdmin.auth.getSession();
+    const adminApp = getFirebaseAdminApp();
+    const adminAuth = getAuth(adminApp);
     
-    if (!session) {
+    // Get the session cookie
+    const sessionCookie = req.cookies.get('__session')?.value;
+    
+    if (!sessionCookie) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    // Verify the session cookie
+    const decodedClaims = await adminAuth.verifySessionCookie(sessionCookie, true);
+    const currentUserId = decodedClaims.uid;
+    
+    if (!currentUserId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     
     // Check if the current user is an admin
-    const currentUserId = session.user.id;
     const adminCheck = await isAdmin(currentUserId);
     
     if (!adminCheck) {

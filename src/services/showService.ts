@@ -1,6 +1,7 @@
-import { supabase } from '@/lib/supabase';
+import { db } from '@/lib/firebase';
+import { collection, doc, addDoc, getDoc, getDocs, updateDoc, deleteDoc, query, orderBy, serverTimestamp, DocumentData, QueryDocumentSnapshot } from 'firebase/firestore';
 
-const TABLE_NAME = 'shows';
+const COLLECTION_NAME = 'shows';
 
 export interface Show {
   id: string;
@@ -20,31 +21,43 @@ export interface NewShow {
   metadata?: Record<string, any>;
 }
 
+// Helper function to convert Firestore document to Show type
+const convertToShow = (doc: QueryDocumentSnapshot<DocumentData>): Show => {
+  const data = doc.data();
+  return {
+    id: doc.id,
+    title: data.title,
+    description: data.description,
+    creator_id: data.creator_id,
+    is_template: data.is_template,
+    metadata: data.metadata,
+    created_at: data.created_at ? new Date(data.created_at.toDate()).toISOString() : undefined,
+    updated_at: data.updated_at ? new Date(data.updated_at.toDate()).toISOString() : undefined
+  };
+};
+
 export async function createShow(show: NewShow): Promise<Show> {
   try {
     const newShow = {
       title: show.title,
       description: show.description,
       is_template: show.is_template || false,
-      metadata: show.metadata || {}
+      metadata: show.metadata || {},
+      created_at: serverTimestamp(),
+      updated_at: serverTimestamp()
     };
 
-    const { data, error } = await supabase
-      .from(TABLE_NAME)
-      .insert([newShow])
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error creating show:', error);
-      throw error;
-    }
+    const docRef = await addDoc(collection(db, COLLECTION_NAME), newShow);
+    const docSnap = await getDoc(docRef);
     
-    if (!data) {
+    if (!docSnap.exists()) {
       throw new Error('No data returned from show creation');
     }
     
-    return data;
+    return {
+      id: docRef.id,
+      ...docSnap.data() as Omit<Show, 'id'>
+    };
   } catch (error) {
     console.error('Error in createShow:', error);
     if (error instanceof Error) {
@@ -56,22 +69,17 @@ export async function createShow(show: NewShow): Promise<Show> {
 
 export async function getShowById(id: string): Promise<Show> {
   try {
-    const { data, error } = await supabase
-      .from(TABLE_NAME)
-      .select('*')
-      .eq('id', id)
-      .single();
+    const docRef = doc(db, COLLECTION_NAME, id);
+    const docSnap = await getDoc(docRef);
 
-    if (error) {
-      console.error('Error getting show:', error);
-      throw error;
-    }
-    
-    if (!data) {
+    if (!docSnap.exists()) {
       throw new Error(`Show not found with id: ${id}`);
     }
     
-    return data;
+    return {
+      id: docSnap.id,
+      ...docSnap.data() as Omit<Show, 'id'>
+    };
   } catch (error) {
     console.error('Error in getShowById:', error);
     if (error instanceof Error) {
@@ -83,28 +91,12 @@ export async function getShowById(id: string): Promise<Show> {
 
 export async function getAllShows(): Promise<Show[]> {
   try {
-    const session = await supabase.auth.getSession();
-    if (!session.data.session) {
-      console.error('No active session found');
-      throw new Error('Authentication required');
-    }
-
-    const { data, error } = await supabase
-      .from(TABLE_NAME)
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('Error getting shows:', error);
-      console.error('Error details:', {
-        message: error.message,
-        details: error.details,
-        hint: error.hint
-      });
-      throw error;
-    }
+    // Note: Authentication check would need to be handled separately with Firebase Auth
     
-    return data || [];
+    const q = query(collection(db, COLLECTION_NAME), orderBy('created_at', 'desc'));
+    const querySnapshot = await getDocs(q);
+    
+    return querySnapshot.docs.map(convertToShow);
   } catch (error) {
     console.error('Error in getAllShows:', error);
     if (error instanceof Error) {
@@ -116,23 +108,27 @@ export async function getAllShows(): Promise<Show[]> {
 
 export async function updateShow(id: string, show: Partial<Show>): Promise<Show> {
   try {
-    const { data, error } = await supabase
-      .from(TABLE_NAME)
-      .update(show)
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error updating show:', error);
-      throw error;
-    }
+    const docRef = doc(db, COLLECTION_NAME, id);
     
-    if (!data) {
+    // Add updated_at timestamp
+    const updateData = {
+      ...show,
+      updated_at: serverTimestamp()
+    };
+    
+    await updateDoc(docRef, updateData);
+    
+    // Get the updated document
+    const docSnap = await getDoc(docRef);
+    
+    if (!docSnap.exists()) {
       throw new Error(`Show not found with id: ${id}`);
     }
     
-    return data;
+    return {
+      id: docSnap.id,
+      ...docSnap.data() as Omit<Show, 'id'>
+    };
   } catch (error) {
     console.error('Error in updateShow:', error);
     if (error instanceof Error) {
@@ -144,15 +140,8 @@ export async function updateShow(id: string, show: Partial<Show>): Promise<Show>
 
 export async function deleteShow(id: string): Promise<void> {
   try {
-    const { error } = await supabase
-      .from(TABLE_NAME)
-      .delete()
-      .eq('id', id);
-
-    if (error) {
-      console.error('Error deleting show:', error);
-      throw error;
-    }
+    const docRef = doc(db, COLLECTION_NAME, id);
+    await deleteDoc(docRef);
   } catch (error) {
     console.error('Error in deleteShow:', error);
     if (error instanceof Error) {

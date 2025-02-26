@@ -4,7 +4,8 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
 import { LogOut } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import { auth } from '@/lib/firebase';
+import { signOut } from 'firebase/auth';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -17,7 +18,7 @@ export function SettingsModal({ isOpen, onClose, showBorders, onToggleBorders }:
   const router = useRouter();
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    await signOut(auth);
     router.refresh();
     onClose();
   };

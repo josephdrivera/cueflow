@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { db } from '@/lib/firebase';
+import { collection, query, where, orderBy, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
 import { Plus, Settings } from 'lucide-react';
 import { CueModal } from './CueModal';
 import { Cue } from '../types/cue';
@@ -109,27 +110,29 @@ export function CueList({ showId, cueListId }: CueListProps) {
         setError(null);
 
         // If cueListId is provided, use it, otherwise fall back to show_id
-        let query;
+        let cueQuery;
         if (cueListId) {
-          query = supabase
-            .from('cues')
-            .select('*')
-            .eq('day_cue_list_id', cueListId);
+          cueQuery = query(
+            collection(db, 'cues'),
+            where('day_cue_list_id', '==', cueListId),
+            orderBy('cue_number')
+          );
         } else {
-          query = supabase
-            .from('cues')
-            .select('*')
-            .eq('show_id', showId);
+          cueQuery = query(
+            collection(db, 'cues'),
+            where('show_id', '==', showId),
+            orderBy('cue_number')
+          );
         }
 
-        const { data, error: fetchError } = await query.order('cue_number', { ascending: true });
+        const querySnapshot = await getDocs(cueQuery);
+        const cueData = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as Cue[];
 
-        if (fetchError) throw fetchError;
-
-        if (data) {
-          setCues(data);
-          calculateTotalRunningTime(data);
-        }
+        setCues(cueData);
+        calculateTotalRunningTime(cueData);
       } catch (err) {
         console.error('Error fetching cues:', err);
         setError('Failed to load cues. Please try again later.');
@@ -241,20 +244,20 @@ export function CueList({ showId, cueListId }: CueListProps) {
               const cueData = {
                 ...newCue,
                 day_cue_list_id: cueListId,
-                show_id: !cueListId ? showId : undefined
+                show_id: !cueListId ? showId : undefined,
+                created_at: serverTimestamp(),
+                updated_at: serverTimestamp()
               };
 
-              const { data, error } = await supabase
-                .from('cues')
-                .insert([cueData])
-                .select()
-                .single();
-
-              if (error) throw error;
-              if (data) {
-                setCues([...cues, data]);
-              }
+              const docRef = await addDoc(collection(db, 'cues'), cueData);
               
+              // Add the new cue to the local state with the generated ID
+              const newCueWithId = {
+                ...cueData,
+                id: docRef.id
+              } as Cue;
+              
+              setCues([...cues, newCueWithId]);
               setIsModalOpen(false);
             } catch (error) {
               console.error('Error adding cue:', error);

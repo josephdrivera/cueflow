@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { sendPasswordResetEmail } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
 import Link from 'next/link';
 
 export default function ForgotPasswordForm() {
@@ -21,15 +22,28 @@ export default function ForgotPasswordForm() {
         throw new Error('Please enter your email address');
       }
 
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/reset-password`,
+      await sendPasswordResetEmail(auth, email, {
+        url: `${window.location.origin}/auth/login`,
       });
-
-      if (error) throw error;
 
       setSuccess(true);
     } catch (error) {
-      setError(error.message);
+      console.error('Password reset error:', error);
+      
+      // Handle Firebase auth errors
+      if (error.code === 'auth/user-not-found') {
+        // For security reasons, don't reveal if the email exists or not
+        // Still show success message to prevent email enumeration
+        setSuccess(true);
+      } else if (error.code === 'auth/invalid-email') {
+        setError('Please enter a valid email address.');
+      } else if (error.code === 'auth/too-many-requests') {
+        setError('Too many requests. Please try again later.');
+      } else if (error instanceof Error) {
+        setError(error.message);
+      } else {
+        setError('An unexpected error occurred. Please try again.');
+      }
     } finally {
       setLoading(false);
     }

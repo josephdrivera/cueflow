@@ -2,7 +2,9 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import { createUserWithEmailAndPassword, updateProfile, sendEmailVerification } from 'firebase/auth';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { auth, db } from '@/lib/firebase';
 import Link from 'next/link';
 
 export default function SignUpForm() {
@@ -30,51 +32,45 @@ export default function SignUpForm() {
     setLoading(true);
 
     try {
-      // Sign up the user with Supabase Auth
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-          data: {
-            full_name: '',  // Default empty values for profile data
-            username: email.split('@')[0].length >= 3 
-              ? email.split('@')[0].substring(0, 20) // Use part of email as default username with max length
-              : `user_${Math.random().toString(36).substring(2, 7)}`, // Fallback for short email prefixes
-          }
-        },
+      // Create the user with Firebase Auth
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+      
+      // Generate a username from the email
+      const username = email.split('@')[0].length >= 3 
+        ? email.split('@')[0].substring(0, 20) // Use part of email as default username with max length
+        : `user_${Math.random().toString(36).substring(2, 7)}`; // Fallback for short email prefixes
+      
+      // Create a user profile in Firestore
+      await setDoc(doc(db, 'profiles', user.uid), {
+        id: user.uid,
+        username: username,
+        full_name: '',
+        avatar_url: null,
+        role: 'user',
+        created_at: serverTimestamp(),
+        updated_at: serverTimestamp()
       });
-
-      if (error) {
-        console.error('Supabase signup error:', error);
-        console.error('Error details:', {
-          message: error.message,
-          status: error.status,
-          name: error.name,
-          stack: error.stack
-        });
-        
-        // Handle specific error cases
-        if (error.message.toLowerCase().includes('email already registered')) {
-          setError('This email is already registered. Please try logging in instead.');
-          return;
-        }
-        
-        // Set a more informative error message
-        setError(`Signup failed: ${error.message} (Status: ${error.status || 'unknown'})`);
-        return;
-      }
-
-      // If user was created successfully, redirect to email verification page
-      if (data.user) {
-        // The profile will be created automatically by the database trigger
-        router.push('/auth/verify-email?email=' + encodeURIComponent(email));
-      }
+      
+      // Send email verification
+      await sendEmailVerification(user);
+      
+      // Redirect to email verification page
+      router.push('/auth/verify-email?email=' + encodeURIComponent(email));
     } catch (error) {
-      if (error instanceof Error) {
+      console.error('Signup error:', error);
+      
+      // Handle Firebase auth errors
+      if (error.code === 'auth/email-already-in-use') {
+        setError('This email is already registered. Please try logging in instead.');
+      } else if (error.code === 'auth/invalid-email') {
+        setError('Please enter a valid email address.');
+      } else if (error.code === 'auth/weak-password') {
+        setError('Password is too weak. Please choose a stronger password.');
+      } else if (error instanceof Error) {
         setError(error.message);
       } else {
-        setError('An unexpected error occurred');
+        setError('An unexpected error occurred during signup.');
       }
     } finally {
       setLoading(false);

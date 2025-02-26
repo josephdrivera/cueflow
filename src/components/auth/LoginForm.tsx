@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
 import Link from 'next/link';
 
 export default function LoginForm() {
@@ -31,22 +32,27 @@ export default function LoginForm() {
         throw new Error('Please fill in all fields');
       }
 
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) {
-        if (error.message.includes('Invalid login')) {
-          throw new Error('Invalid email or password');
-        }
-        throw error;
-      }
+      await signInWithEmailAndPassword(auth, email, password);
 
       // Redirect to dashboard after successful login
       window.location.href = '/dashboard';
     } catch (error) {
-      setError(error.message);
+      console.error('Login error:', error);
+      
+      // Handle Firebase auth errors
+      if (error.code === 'auth/invalid-credential' || 
+          error.code === 'auth/user-not-found' || 
+          error.code === 'auth/wrong-password') {
+        setError('Invalid email or password');
+      } else if (error.code === 'auth/too-many-requests') {
+        setError('Too many failed login attempts. Please try again later or reset your password.');
+      } else if (error.code === 'auth/user-disabled') {
+        setError('This account has been disabled. Please contact support.');
+      } else if (error instanceof Error) {
+        setError(error.message);
+      } else {
+        setError('An error occurred during login. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
