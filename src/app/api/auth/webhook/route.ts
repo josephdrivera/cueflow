@@ -1,8 +1,10 @@
 import { createUserProfile } from '@/lib/auth-helpers';
 import { NextRequest, NextResponse } from 'next/server';
+import { getAuth } from 'firebase-admin/auth';
+import { getFirebaseAdminApp } from '@/lib/firebase-admin';
 
 export async function POST(req: NextRequest) {
-  const webhookSecret = process.env.SUPABASE_WEBHOOK_SECRET;
+  const webhookSecret = process.env.FIREBASE_WEBHOOK_SECRET;
   
   // Verify the webhook secret if you've set one up
   const authHeader = req.headers.get('authorization');
@@ -13,13 +15,15 @@ export async function POST(req: NextRequest) {
   try {
     const payload = await req.json();
     
-    // Handle user sign-up event
-    if (payload.type === 'INSERT' && payload.table === 'users') {
-      const user = payload.record;
+    // Handle Firebase Auth webhook events
+    // Firebase Auth webhooks are different from Supabase
+    // This is a simplified example - adjust according to your Firebase Auth webhook structure
+    if (payload.event === 'user.created') {
+      const user = payload.user;
       
       // Create a profile for the new user with default 'user' role
       await createUserProfile(
-        user.id,
+        user.uid,
         null, // username (can be set later)
         null, // full name (can be set later)
         null, // avatar URL (can be set later)

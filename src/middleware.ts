@@ -1,5 +1,7 @@
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { cookies } from 'next/headers';
+import { getAuth, onIdTokenChanged } from 'firebase-admin/auth';
+import { getFirebaseAdminApp } from './lib/firebase-admin';
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({
@@ -8,73 +10,63 @@ export async function middleware(request: NextRequest) {
     },
   });
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return request.cookies.get(name)?.value;
-        },
-        set(name: string, value: string, options: CookieOptions) {
-          response.cookies.set({
-            name,
-            value,
-            ...options,
-          });
-        },
-        remove(name: string, options: CookieOptions) {
-          response.cookies.set({
-            name,
-            value: '',
-            ...options,
-          });
-        },
-      },
-    }
-  );
-
   console.log(' Middleware - Request URL:', request.nextUrl.pathname);
   
   try {
-    const { data: { user }, error } = await supabase.auth.getUser();
+    // Get the Firebase session token from cookies
+    const sessionCookie = request.cookies.get('__session')?.value;
 
-    if (error || !user) {
-      console.error(' Middleware - Session error:', error?.message);
-      return NextResponse.redirect(new URL('/auth/login', request.url));
+    if (!sessionCookie) {
+      console.error(' Middleware - No session cookie found');
+      return redirectToLogin(request);
     }
 
-    console.log(' Middleware - Session status:', user ? 'Active' : 'None', user?.id || '');
+    // Initialize Firebase Admin
+    const adminApp = getFirebaseAdminApp();
+    const adminAuth = getAuth(adminApp);
 
-    // Auth callback should always be allowed
-    if (request.nextUrl.pathname.startsWith('/api/auth')) {
-      console.log(' Middleware - Auth callback route detected');
-      return response;
-    }
+    // Verify the session cookie
+    try {
+      const decodedClaims = await adminAuth.verifySessionCookie(sessionCookie, true);
+      const user = decodedClaims;
 
-    // If the user is signed in and trying to access auth pages, redirect them home
-    if (user && request.nextUrl.pathname.startsWith('/auth')) {
-      console.log(' Middleware - Authenticated user redirected from auth page to home');
-      return NextResponse.redirect(new URL('/', request.url));
-    }
+      console.log(' Middleware - Session status: Active', user.uid || '');
 
-    // If the user is not signed in and trying to access a protected route
-    if (!user && !request.nextUrl.pathname.startsWith('/auth')) {
-      console.log(' Middleware - Unauthenticated user attempting to access:', request.nextUrl.pathname);
-      let redirectUrl = request.nextUrl.pathname;
-      if (redirectUrl !== '/') {
-        return NextResponse.redirect(
-          new URL(`/auth/login?redirectedFrom=${redirectUrl}`, request.url)
-        );
+      // Auth callback should always be allowed
+      if (request.nextUrl.pathname.startsWith('/api/auth')) {
+        console.log(' Middleware - Auth callback route detected');
+        return response;
       }
-      return NextResponse.redirect(new URL('/auth/login', request.url));
-    }
 
-    return response;
+      // If the user is signed in and trying to access auth pages, redirect them home
+      if (user && request.nextUrl.pathname.startsWith('/auth')) {
+        console.log(' Middleware - Authenticated user redirected from auth page to home');
+        return NextResponse.redirect(new URL('/', request.url));
+      }
+
+      return response;
+    } catch (error) {
+      console.error(' Middleware - Invalid session cookie:', error);
+      return redirectToLogin(request);
+    }
   } catch (error) {
     console.error(' Middleware - Exception:', error);
-    return NextResponse.redirect(new URL('/auth/login', request.url));
+    return redirectToLogin(request);
   }
+}
+
+function redirectToLogin(request: NextRequest) {
+  // If the user is not signed in and trying to access a protected route
+  if (!request.nextUrl.pathname.startsWith('/auth')) {
+    console.log(' Middleware - Unauthenticated user attempting to access:', request.nextUrl.pathname);
+    let redirectUrl = request.nextUrl.pathname;
+    if (redirectUrl !== '/') {
+      return NextResponse.redirect(
+        new URL(`/auth/login?redirectedFrom=${redirectUrl}`, request.url)
+      );
+    }
+  }
+  return NextResponse.redirect(new URL('/auth/login', request.url));
 }
 
 export const config = {

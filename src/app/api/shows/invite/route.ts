@@ -1,24 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { getAuth } from 'firebase-admin/auth';
+import { getFirebaseAdminApp } from '@/lib/firebase-admin';
+import { getFirestore } from 'firebase-admin/firestore';
 import { inviteCollaborator, PendingInvite } from '@/services/collaboratorService';
-
-// Create a Supabase client with admin privileges for server-side operations
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.SUPABASE_SERVICE_ROLE_KEY || '' // This is your service role key, not the anon key
-);
 
 // Helper function to check if the user owns the show
 async function userOwnsShow(userId: string, showId: string): Promise<boolean> {
-  const { data, error } = await supabaseAdmin
-    .from('shows')
-    .select('user_id')
-    .eq('id', showId)
-    .eq('user_id', userId)
-    .single();
+  const adminApp = getFirebaseAdminApp();
+  const db = getFirestore(adminApp);
   
-  if (error || !data) return false;
-  return true;
+  const showDoc = await db.collection('shows').doc(showId).get();
+  
+  if (!showDoc.exists) return false;
+  const data = showDoc.data();
+  return data?.user_id === userId;
 }
 
 // Helper function to send invitation email
@@ -57,10 +52,23 @@ async function sendInvitationEmail(invitation: PendingInvite, inviterName: strin
 
 export async function POST(req: NextRequest) {
   try {
-    // Get the current user's session
-    const { data: { session } } = await supabaseAdmin.auth.getSession();
+    // Get the session cookie
+    const sessionCookie = req.cookies.get('__session')?.value;
     
-    if (!session) {
+    if (!sessionCookie) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    // Initialize Firebase Admin
+    const adminApp = getFirebaseAdminApp();
+    const adminAuth = getAuth(adminApp);
+    const db = getFirestore(adminApp);
+    
+    // Verify the session cookie
+    const decodedClaims = await adminAuth.verifySessionCookie(sessionCookie, true);
+    const userId = decodedClaims.uid;
+    
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     
@@ -72,7 +80,7 @@ export async function POST(req: NextRequest) {
     }
     
     // Check if the current user owns the show
-    const hasAccess = await userOwnsShow(session.user.id, showId);
+    const hasAccess = await userOwnsShow(userId, showId);
     
     if (!hasAccess) {
       return NextResponse.json({ error: 'You do not have permission to invite users to this show' }, { status: 403 });
@@ -85,14 +93,16 @@ export async function POST(req: NextRequest) {
       can_edit: !!canEdit
     });
     
-    // Get the inviter's name
-    const { data: profile } = await supabaseAdmin
-      .from('profiles')
-      .select('full_name, username')
-      .eq('id', session.user.id)
-      .single();
+    // Get the inviter's name from Firestore
+    const profileDoc = await db.collection('profiles').doc(userId).get();
+    const profile = profileDoc.exists ? profileDoc.data() : null;
     
-    const inviterName = profile?.full_name || profile?.username || session.user.email;
+    // Get the user's email if profile doesn't exist
+    let inviterName = profile?.full_name || profile?.username;
+    if (!inviterName) {
+      const userRecord = await adminAuth.getUser(userId);
+      inviterName = userRecord.email || userId;
+    }
     
     // Send the invitation email
     await sendInvitationEmail(invitation, inviterName);

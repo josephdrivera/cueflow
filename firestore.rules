@@ -1,59 +1,115 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Users can read and write their own data
-    match /users/{userId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth.uid == userId;
+    // Basic functions for access control
+    function isAuthenticated() {
+      return request.auth != null;
     }
     
-    // Shows can be read by creator and collaborators
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // User profiles are accessible by everyone but only editable by the user
+    match /profiles/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isOwner(userId);
+    }
+    
+    // Shows can only be accessed by their owners or invited collaborators
     match /shows/{showId} {
-      function isCreator() {
-        return request.auth.uid == resource.data.creatorId;
+      // Helper functions for show access
+      function isShowOwner() {
+        return isAuthenticated() && request.auth.uid == resource.data.creator_id;
       }
       
       function isCollaborator() {
-        return exists(/databases/$(database)/documents/shows/$(showId)/collaborators/$(request.auth.uid));
+        return isAuthenticated() && 
+          exists(/databases/$(database)/documents/show_collaborators/{docId}) && 
+          docId.matches(showId + '_' + request.auth.uid);
       }
       
-      function canEdit() {
-        return isCreator() || 
-          (isCollaborator() && get(/databases/$(database)/documents/shows/$(showId)/collaborators/$(request.auth.uid)).data.canEdit == true);
+      function hasEditPermission() {
+        let collaboratorId = showId + '_' + request.auth.uid;
+        return isShowOwner() || 
+          (isCollaborator() && 
+           get(/databases/$(database)/documents/show_collaborators/$(collaboratorId)).data.can_edit == true);
       }
       
-      allow read: if request.auth != null && (isCreator() || isCollaborator());
-      allow create: if request.auth != null;
-      allow update, delete: if request.auth != null && canEdit();
-      
-      // Day Cue Lists
-      match /dayCueLists/{dayCueListId} {
-        allow read: if request.auth != null && (isCreator() || isCollaborator());
-        allow write: if request.auth != null && canEdit();
-        
-        // Cues
-        match /cues/{cueId} {
-          allow read: if request.auth != null && (isCreator() || isCollaborator());
-          allow write: if request.auth != null && canEdit();
-        }
-      }
-      
-      // Collaborators
-      match /collaborators/{userId} {
-        allow read: if request.auth != null && (isCreator() || isCollaborator());
-        allow create, update, delete: if request.auth != null && isCreator();
-      }
+      // Show access rules
+      allow read: if isAuthenticated() && (isShowOwner() || isCollaborator());
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && hasEditPermission();
+      allow delete: if isAuthenticated() && isShowOwner();
     }
     
-    // Invitations
-    match /invitations/{invitationId} {
-      allow read: if request.auth != null && 
-        (resource.data.email == request.auth.token.email || 
-         resource.data.creatorId == request.auth.uid);
-      allow create: if request.auth != null && 
-        exists(/databases/$(database)/documents/shows/$(request.resource.data.showId)/collaborators/$(request.auth.uid));
-      allow delete: if request.auth != null && 
-        (resource.data.creatorId == request.auth.uid);
+    // Cues can only be updated by users with edit permissions
+    match /cues/{cueId} {
+      function getShowId() {
+        return resource.data.show_id;
+      }
+      
+      function isShowOwner() {
+        return isAuthenticated() && 
+          get(/databases/$(database)/documents/shows/$(getShowId())).data.creator_id == request.auth.uid;
+      }
+      
+      function isCollaboratorWithEditAccess() {
+        let collaboratorId = getShowId() + '_' + request.auth.uid;
+        return isAuthenticated() && 
+          exists(/databases/$(database)/documents/show_collaborators/$(collaboratorId)) &&
+          get(/databases/$(database)/documents/show_collaborators/$(collaboratorId)).data.can_edit == true;
+      }
+      
+      function hasShowAccess() {
+        let collaboratorId = getShowId() + '_' + request.auth.uid;
+        return isShowOwner() || exists(/databases/$(database)/documents/show_collaborators/$(collaboratorId));
+      }
+      
+      allow read: if isAuthenticated() && hasShowAccess();
+      allow create, update: if isAuthenticated() && (isShowOwner() || isCollaboratorWithEditAccess());
+      allow delete: if isAuthenticated() && isShowOwner();
+    }
+    
+    // Collaborator management - only show owners can invite/manage collaborators
+    match /show_collaborators/{collaboratorId} {
+      function extractShowId() {
+        return collaboratorId.split('_')[0];
+      }
+      
+      function extractUserId() {
+        return collaboratorId.split('_')[1];
+      }
+      
+      function isShowOwner() {
+        let showId = extractShowId();
+        return isAuthenticated() && 
+          get(/databases/$(database)/documents/shows/$(showId)).data.creator_id == request.auth.uid;
+      }
+      
+      allow read: if isAuthenticated() && 
+        (request.auth.uid == extractUserId() || 
+         get(/databases/$(database)/documents/shows/$(extractShowId())).data.creator_id == request.auth.uid ||
+         exists(/databases/$(database)/documents/show_collaborators/$(extractShowId() + '_' + request.auth.uid)));
+      allow create, update, delete: if isAuthenticated() && isShowOwner();
+    }
+    
+    // Pending invitations
+    match /pending_invites/{inviteId} {
+      function getShowId() {
+        return resource.data.show_id;
+      }
+      
+      function isShowOwner() {
+        return isAuthenticated() && 
+          get(/databases/$(database)/documents/shows/$(getShowId())).data.creator_id == request.auth.uid;
+      }
+      
+      allow read: if isAuthenticated() && 
+        (resource.data.email == request.auth.token.email || isShowOwner());
+      allow create: if isAuthenticated() && isShowOwner();
+      allow delete: if isAuthenticated() && 
+        (isShowOwner() || resource.data.email == request.auth.token.email);
     }
   }
 }
