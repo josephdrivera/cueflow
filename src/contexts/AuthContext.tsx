@@ -8,7 +8,8 @@ import {
   sendPasswordResetEmail,
   signOut as firebaseSignOut,
   onAuthStateChanged,
-  sendEmailVerification
+  sendEmailVerification,
+  getIdToken
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useRouter, usePathname } from 'next/navigation';
@@ -120,8 +121,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       
-      // Create a Firebase Auth token for server-side usage
-      const idToken = await userCredential.user.getIdToken();
+      // Get the ID token
+      const idToken = await getIdToken(userCredential.user);
       
       // Call our auth callback API to set the session cookie
       await fetch(`/api/auth/callback?idToken=${idToken}`);

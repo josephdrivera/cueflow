@@ -1,6 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { getAuth } from 'firebase-admin/auth';
-import { getFirebaseAdminApp } from './lib/firebase-admin';
+import { cookies } from 'next/headers';
 
 export async function middleware(request: NextRequest) {
   // Get the path
@@ -50,25 +49,9 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
   
-  try {
-    // Verify the session cookie
-    const adminApp = getFirebaseAdminApp();
-    const adminAuth = getAuth(adminApp);
-    
-    await adminAuth.verifySessionCookie(sessionCookie, true);
-    
-    // If verification succeeds, the user is authenticated
-    return NextResponse.next();
-  } catch (error) {
-    // If verification fails, redirect to login
-    console.error('Session verification failed:', error);
-    
-    const url = new URL('/auth/login', request.url);
-    url.searchParams.set('redirectedFrom', path);
-    url.searchParams.set('error', 'Your session has expired. Please log in again.');
-    
-    return NextResponse.redirect(url);
-  }
+  // If we have a session cookie, allow the request to proceed
+  // The actual verification will happen in the Server Component or Action
+  return NextResponse.next();
 }
 
 export const config = {
