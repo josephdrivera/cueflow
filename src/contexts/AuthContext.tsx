@@ -1,9 +1,19 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import { 
+  User as FirebaseUser,
+  onAuthStateChanged, 
+  signOut as firebaseSignOut
+} from 'firebase/auth';
+import { 
+  doc, 
+  getDoc, 
+  setDoc, 
+  serverTimestamp 
+} from 'firebase/firestore';
+import { app, auth, db } from '@/lib/firebase';
 
 // Define the user role type
 type UserRole = 'admin' | 'user';
@@ -19,7 +29,7 @@ type UserProfile = {
 };
 
 type AuthContextType = {
-  user: User | null;
+  user: FirebaseUser | null;
   profile: UserProfile | null;
   loading: boolean;
   signOut: () => Promise<void>;
@@ -37,7 +47,7 @@ const AuthContext = createContext<AuthContextType>({
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<FirebaseUser | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -46,44 +56,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Fetch user profile including role
   const fetchUserProfile = async (userId: string) => {
     try {
-      // First try to get existing profile
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
+      // Try to get existing profile from Firestore
+      const profileRef = doc(db, 'profiles', userId);
+      const profileSnap = await getDoc(profileRef);
 
       // Debug logs for troubleshooting
-      console.log('Profile fetch result:', { data, errorCode: error?.code, errorMessage: error?.message });
+      console.log('Profile fetch result:', { exists: profileSnap.exists(), id: profileSnap.id });
 
-      // If we get a "not found" error (PGRST116), create a new profile
-      if (error && error.code === 'PGRST116') {
+      // If profile doesn't exist, create a new one
+      if (!profileSnap.exists()) {
         console.log('Profile not found, creating new profile for user:', userId);
         
         // Get user email for username
-        const { data: userData } = await supabase.auth.getUser();
-        const email = userData?.user?.email || '';
+        const email = user?.email || '';
         const username = email.split('@')[0]; // Use part before @ as username
         
         try {
           // Create a new profile with default 'user' role
-          const { data: newProfile, error: insertError } = await supabase
-            .from('profiles')
-            .insert([{
-              id: userId,
-              username: username.length >= 3 ? username : `user_${userId.substring(0, 8)}`,
-              role: 'user'
-            }])
-            .select()
-            .single();
-            
-          if (insertError) {
-            console.error('Error creating user profile:', insertError);
-            throw insertError;
-          }
+          const newProfile: UserProfile = {
+            id: userId,
+            username: username.length >= 3 ? username : `user_${userId.substring(0, 8)}`,
+            full_name: user?.displayName || null,
+            avatar_url: user?.photoURL || null,
+            role: 'user',
+            updated_at: new Date().toISOString()
+          };
           
+          // Add timestamp for Firestore
+          await setDoc(profileRef, {
+            ...newProfile,
+            created_at: serverTimestamp(),
+            updated_at: serverTimestamp()
+          });
+            
           console.log('Created new profile:', newProfile);
-          setProfile(newProfile as UserProfile);
+          setProfile(newProfile);
           return;
         } catch (insertErr) {
           console.error('Failed to create profile:', insertErr);
@@ -93,15 +100,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
       
-      // Handle other errors
-      if (error) {
-        console.error('Error fetching profile:', error);
-        // Don't throw the error, just set profile to null
-        setProfile(null);
-        return;
-      }
-      
-      setProfile(data as UserProfile);
+      // Profile exists, set it
+      const profileData = profileSnap.data() as UserProfile;
+      setProfile({
+        ...profileData,
+        id: profileSnap.id,
+        // Ensure updated_at is a string for consistency with the type
+        updated_at: profileData.updated_at || new Date().toISOString()
+      });
     } catch (error) {
       console.error('Error in fetchUserProfile:', error);
       // Don't set error state to prevent UI disruption, just set profile to null
@@ -112,59 +118,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    // Check active sessions and sets the user
-    supabase.auth.getSession().then(({ data: { session }, error }) => {
-      if (!mounted) return;
-
-      if (error) {
-        console.error('Error getting session:', error);
-        setError(error.message);
-      } else {
-        setUser(session?.user ?? null);
-        if (session?.user) {
-          fetchUserProfile(session.user.id);
-        }
-      }
-      setLoading(false);
-    });
-
     // Listen for changes on auth state (sign in, sign out, etc.)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (!mounted) return;
 
-      if (event === 'INITIAL_SESSION') {
-        setUser(session?.user ?? null);
-        if (session?.user) {
-          await fetchUserProfile(session.user.id);
-        }
-        setLoading(false);
-        return;
-      }
-
-      if (event === 'SIGNED_IN') {
-        setUser(session?.user);
-        if (session?.user) {
-          await fetchUserProfile(session.user.id);
-        }
-        setLoading(false);
-        // Ensure proper session state with a full page refresh
-        window.location.replace('/');
-        return;
-      }
-
-      if (event === 'SIGNED_OUT') {
-        setUser(null);
-        setProfile(null);
-        setLoading(false);
-        // Ensure proper session state with a full page refresh
-        window.location.replace('/auth/login');
-        return;
-      }
-
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        await fetchUserProfile(session.user.id);
+      if (firebaseUser) {
+        setUser(firebaseUser);
+        await fetchUserProfile(firebaseUser.uid);
       } else {
+        setUser(null);
         setProfile(null);
       }
       setLoading(false);
@@ -172,16 +134,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       mounted = false;
-      subscription.unsubscribe();
+      unsubscribe();
     };
   }, [router]);
 
   const signOut = async () => {
     try {
       setLoading(true);
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-      // Let the auth state change handler handle the redirect
+      await firebaseSignOut(auth);
+      // The auth state change handler will handle the state update
+      // Redirect will be handled by the onAuthStateChanged listener
     } catch (error) {
       if (error instanceof Error) {
         setError(error.message);
@@ -192,6 +154,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     }
   };
+
+  // Handle redirects on auth state changes
+  useEffect(() => {
+    if (loading) return;
+    
+    if (!user) {
+      // User is signed out, redirect to login
+      window.location.replace('/auth/login');
+    }
+  }, [user, loading]);
 
   return (
     <AuthContext.Provider value={{ 

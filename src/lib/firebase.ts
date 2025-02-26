@@ -30,4 +30,5 @@ if (process.env.NODE_ENV === 'development') {
   // connectStorageEmulator(storage, 'localhost', 9199);
 }
 
+// Export the Firebase services
 export { app, auth, db, storage };
