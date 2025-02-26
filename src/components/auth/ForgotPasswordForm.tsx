@@ -1,65 +1,55 @@
 'use client';
 
 import React, { useState } from 'react';
-import { sendPasswordResetEmail } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
 import Link from 'next/link';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function ForgotPasswordForm() {
   const [email, setEmail] = useState('');
-  const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
+  const { resetPassword, error: authError } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
+    
+    setLocalError(null);
     setSuccess(false);
+    
+    if (!email) {
+      setLocalError('Please enter your email address');
+      return;
+    }
+    
     setLoading(true);
 
     try {
-      if (!email) {
-        throw new Error('Please enter your email address');
-      }
-
-      await sendPasswordResetEmail(auth, email, {
-        url: `${window.location.origin}/auth/login`,
-      });
-
+      await resetPassword(email);
       setSuccess(true);
     } catch (error) {
+      // Most errors are handled by the auth context
+      // We don't show an error for user-not-found for security reasons
       console.error('Password reset error:', error);
-      
-      // Handle Firebase auth errors
-      if (error.code === 'auth/user-not-found') {
-        // For security reasons, don't reveal if the email exists or not
-        // Still show success message to prevent email enumeration
-        setSuccess(true);
-      } else if (error.code === 'auth/invalid-email') {
-        setError('Please enter a valid email address.');
-      } else if (error.code === 'auth/too-many-requests') {
-        setError('Too many requests. Please try again later.');
-      } else if (error instanceof Error) {
-        setError(error.message);
-      } else {
-        setError('An unexpected error occurred. Please try again.');
-      }
     } finally {
       setLoading(false);
     }
   };
 
+  // Use auth context error or local error
+  const displayError = authError || localError;
+
   return (
-    <div className="w-full max-w-md px-6 py-8 bg-gray-900 rounded-lg">
+    <div className="px-6 py-8 w-full max-w-md bg-gray-900 rounded-lg">
       <h1 className="text-[32px] font-bold mb-2 text-white text-center">Reset Password</h1>
-      <p className="text-gray-400 text-center mb-8">
+      <p className="mb-8 text-center text-gray-400">
         Enter your email address and we'll send you instructions to reset your password
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {error && (
+        {displayError && (
           <div className="text-sm text-red-400 bg-red-400/10 px-4 py-3 rounded-[4px]">
-            {error}
+            {displayError}
           </div>
         )}
 
@@ -83,18 +73,18 @@ export default function ForgotPasswordForm() {
             onChange={(e) => setEmail(e.target.value)}
             className="w-full h-[46px] px-4 bg-gray-800 text-white rounded-[4px] focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder:text-gray-500"
             placeholder="Enter your email"
-            disabled={loading}
+            disabled={loading || success}
           />
         </div>
 
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || success}
           className="w-full h-[46px] bg-blue-600 text-white rounded-[4px] font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors mt-2"
         >
           {loading ? (
-            <span className="flex items-center justify-center">
-              <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <span className="flex justify-center items-center">
+              <svg className="mr-3 -ml-1 w-5 h-5 text-white animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
