@@ -1,14 +1,9 @@
 /** @type {import('next').NextConfig} */
-const NodePolyfillPlugin = require('node-polyfill-webpack-plugin');
-
 const nextConfig = {
   reactStrictMode: true,
   webpack: (config, { isServer }) => {
     // Only apply polyfills in the browser build
     if (!isServer) {
-      // Add Node.js polyfills
-      config.plugins.push(new NodePolyfillPlugin());
-      
       // Provide process and Buffer globally
       config.plugins.push(
         new (require('webpack')).ProvidePlugin({
@@ -29,6 +24,7 @@ const nextConfig = {
         'firebase-admin/auth': false,
         'firebase-admin/firestore': false,
         'firebase-admin/storage': false,
+        process: require.resolve('process/browser'),
       };
     }
 
