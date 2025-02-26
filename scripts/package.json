@@ -1,0 +1,24 @@
+{
+  "name": "cueflow-migration",
+  "version": "1.0.0",
+  "description": "Migration script from Supabase to Firebase Firestore for CueFlow app",
+  "main": "migrate-to-firestore.js",
+  "scripts": {
+    "migrate": "node migrate-to-firestore.js",
+    "migrate-data": "node migrate-data-to-firestore.js",
+    "migrate-cueflow-data": "node migrate-cueflow-data.js",
+    "setup": "node setup-firestore.js",
+    "setup-schema": "node setup-firestore-schema.js",
+    "create-schema": "node create-firestore-schema.js",
+    "create-cueflow-schema": "node create-cueflow-schema.js",
+    "cleanup-cueflow-schema": "node create-cueflow-schema.js --cleanup",
+    "cleanup-samples": "node cleanup-samples.js",
+    "cleanup-schema": "node create-firestore-schema.js --cleanup"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.3",
+    "dotenv": "^16.3.1",
+    "firebase-admin": "^11.11.1",
+    "uuid": "^9.0.1"
+  }
+}

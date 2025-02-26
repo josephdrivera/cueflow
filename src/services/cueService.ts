@@ -1,24 +1,46 @@
-import { supabase } from '@/lib/supabase';
+import { db } from '@/lib/firebase';
+import { collection, doc, addDoc, getDoc, getDocs, updateDoc, deleteDoc, query, where, orderBy, serverTimestamp, DocumentData, QueryDocumentSnapshot, writeBatch } from 'firebase/firestore';
 import { Cue, NewCue } from '@/types/cue';
 import { validateCueNumber } from '@/utils/cueNumbering';
 
-const TABLE_NAME = 'cues';
+const COLLECTION_NAME = 'cues';
+
+// Helper function to convert Firestore document to Cue type
+const convertToCue = (doc: QueryDocumentSnapshot<DocumentData>): Cue => {
+  const data = doc.data();
+  return {
+    id: doc.id,
+    day_cue_list_id: data.day_cue_list_id,
+    show_id: data.show_id,
+    cue_number: data.cue_number,
+    display_id: data.display_id,
+    start_time: data.start_time,
+    run_time: data.run_time,
+    end_time: data.end_time,
+    activity: data.activity,
+    graphics: data.graphics,
+    video: data.video,
+    audio: data.audio,
+    lighting: data.lighting,
+    notes: data.notes,
+    previous_cue_id: data.previous_cue_id,
+    next_cue_id: data.next_cue_id,
+    created_at: data.created_at ? new Date(data.created_at.toDate()).toISOString() : undefined,
+    updated_at: data.updated_at ? new Date(data.updated_at.toDate()).toISOString() : undefined
+  };
+};
 
 // Helper functions
 export async function getAllCues(showId: string): Promise<Cue[]> {
   try {
-    const { data, error } = await supabase
-      .from(TABLE_NAME)
-      .select('*')
-      .eq('day_cue_list_id', showId)
-      .order('cue_number');
-
-    if (error) {
-      console.error('Error getting cues:', error);
-      throw error;
-    }
-
-    return data || [];
+    const q = query(
+      collection(db, COLLECTION_NAME),
+      where('day_cue_list_id', '==', showId),
+      orderBy('cue_number')
+    );
+    
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(convertToCue);
   } catch (error) {
     console.error('Error in getAllCues:', error);
     if (error instanceof Error) {
@@ -29,14 +51,17 @@ export async function getAllCues(showId: string): Promise<Cue[]> {
 }
 
 export async function getCueById(id: string): Promise<Cue> { 
-  const { data, error } = await supabase
-    .from(TABLE_NAME)
-    .select('*')
-    .eq('id', id)
-    .single();
+  const docRef = doc(db, COLLECTION_NAME, id);
+  const docSnap = await getDoc(docRef);
 
-  if (error) throw error;
-  return data;
+  if (!docSnap.exists()) {
+    throw new Error(`Cue not found with id: ${id}`);
+  }
+
+  return {
+    id: docSnap.id,
+    ...docSnap.data() as Omit<Cue, 'id'>
+  };
 }
 
 export async function createCue(cue: NewCue): Promise<Cue> {
@@ -85,29 +110,23 @@ export async function createCue(cue: NewCue): Promise<Cue> {
       lighting: cue.lighting ?? '',
       notes: cue.notes ?? '',
       previous_cue_id: cue.previous_cue_id ?? null,
-      next_cue_id: cue.next_cue_id ?? null
+      next_cue_id: cue.next_cue_id ?? null,
+      created_at: serverTimestamp(),
+      updated_at: serverTimestamp()
     };
 
     console.log('Creating new cue:', newCue);
-    const { data, error } = await supabase
-      .from('cues')
-      .insert([newCue])
-      .select()
-      .single();
+    const docRef = await addDoc(collection(db, COLLECTION_NAME), newCue);
+    const docSnap = await getDoc(docRef);
 
-    if (error) {
-      console.error('Supabase error creating cue:', error);
-      // Construct a detailed error message
-      const errorMessage = error.message || 
-        (error.details ? `Database error: ${error.details}` : 'Unknown database error');
-      throw new Error(`Failed to create cue: ${errorMessage}`);
-    }
-
-    if (!data) {
+    if (!docSnap.exists()) {
       throw new Error('No data returned after creating cue');
     }
 
-    return data;
+    return {
+      id: docRef.id,
+      ...docSnap.data() as Omit<Cue, 'id'>
+    };
   } catch (error) {
     console.error('Error in createCue:', error);
     if (error instanceof Error) {
@@ -125,37 +144,37 @@ export async function updateCue(id: string, cue: Partial<Cue>): Promise<Cue> {
       throw new Error(`Invalid cue number format: ${cue.cue_number}`);
     }
 
-    const { data, error } = await supabase
-      .from(TABLE_NAME)
-      .update({
-        cue_number: cue.cue_number,
-        start_time: cue.start_time,
-        run_time: cue.run_time,
-        end_time: cue.end_time,
-        activity: cue.activity,
-        graphics: cue.graphics,
-        video: cue.video,
-        audio: cue.audio,
-        lighting: cue.lighting,
-        notes: cue.notes,
-        day_cue_list_id: cue.day_cue_list_id,
-        previous_cue_id: cue.previous_cue_id,
-        next_cue_id: cue.next_cue_id,
-      })
-      .eq('id', id)
-      .select()
-      .single();
+    const docRef = doc(db, COLLECTION_NAME, id);
+    
+    // Prepare update data
+    const updateData = {
+      ...(cue.cue_number && { cue_number: cue.cue_number }),
+      ...(cue.start_time && { start_time: cue.start_time }),
+      ...(cue.run_time && { run_time: cue.run_time }),
+      ...(cue.end_time && { end_time: cue.end_time }),
+      ...(cue.activity !== undefined && { activity: cue.activity }),
+      ...(cue.graphics !== undefined && { graphics: cue.graphics }),
+      ...(cue.video !== undefined && { video: cue.video }),
+      ...(cue.audio !== undefined && { audio: cue.audio }),
+      ...(cue.lighting !== undefined && { lighting: cue.lighting }),
+      ...(cue.notes !== undefined && { notes: cue.notes }),
+      ...(cue.day_cue_list_id && { day_cue_list_id: cue.day_cue_list_id }),
+      ...(cue.previous_cue_id !== undefined && { previous_cue_id: cue.previous_cue_id }),
+      ...(cue.next_cue_id !== undefined && { next_cue_id: cue.next_cue_id }),
+      updated_at: serverTimestamp()
+    };
 
-    if (error) {
-      console.error('Supabase error updating cue:', error);
-      throw new Error(`Database error: ${error.message}${error.details ? ` - ${error.details}` : ''}`);
-    }
-
-    if (!data) {
+    await updateDoc(docRef, updateData);
+    
+    const docSnap = await getDoc(docRef);
+    if (!docSnap.exists()) {
       throw new Error('No data returned from cue update');
     }
 
-    return data;
+    return {
+      id: docSnap.id,
+      ...docSnap.data() as Omit<Cue, 'id'>
+    };
   } catch (error) {
     console.error('Error updating cue:', error);
     if (error instanceof Error) {
@@ -170,24 +189,39 @@ export async function deleteCue(id: string): Promise<void> {
     console.log('Starting to delete cue with ID:', id);
 
     // First, update any references to this cue to be null
-    const { error: updateError } = await supabase
-      .rpc('update_cue_references', { target_id: id });
+    // Get all cues that reference this cue
+    const previousCueQuery = query(
+      collection(db, COLLECTION_NAME),
+      where('next_cue_id', '==', id)
+    );
+    
+    const nextCueQuery = query(
+      collection(db, COLLECTION_NAME),
+      where('previous_cue_id', '==', id)
+    );
 
-    if (updateError) {
-      console.error('Error updating references:', updateError);
-      throw updateError;
-    }
+    const [previousCueSnapshot, nextCueSnapshot] = await Promise.all([
+      getDocs(previousCueQuery),
+      getDocs(nextCueQuery)
+    ]);
+
+    // Update references in a batch
+    const batch = writeBatch(db);
+    
+    previousCueSnapshot.forEach(doc => {
+      batch.update(doc.ref, { next_cue_id: null });
+    });
+    
+    nextCueSnapshot.forEach(doc => {
+      batch.update(doc.ref, { previous_cue_id: null });
+    });
+    
+    // Commit the batch
+    await batch.commit();
 
     // Delete the cue
-    const { error: deleteError } = await supabase
-      .from(TABLE_NAME)
-      .delete()
-      .eq('id', id);
-
-    if (deleteError) {
-      console.error('Error deleting cue:', deleteError);
-      throw deleteError;
-    }
+    const docRef = doc(db, COLLECTION_NAME, id);
+    await deleteDoc(docRef);
 
     console.log('Successfully deleted cue');
   } catch (error) {
@@ -247,22 +281,22 @@ export async function insertCueBetween(
 
 export async function checkDuplicateCueNumber(day_cue_list_id: string, cueNumber: string, excludeId?: string): Promise<boolean> {
   try {
-    let query = supabase
-      .from(TABLE_NAME)
-      .select('id')
-      .eq('day_cue_list_id', day_cue_list_id)
-      .eq('cue_number', cueNumber);
+    const q = query(
+      collection(db, COLLECTION_NAME),
+      where('day_cue_list_id', '==', day_cue_list_id),
+      where('cue_number', '==', cueNumber)
+    );
     
+    const querySnapshot = await getDocs(q);
+    
+    // If excludeId is provided, filter out that document
     if (excludeId) {
-      query = query.neq('id', excludeId);
+      return querySnapshot.docs.some(doc => doc.id !== excludeId);
     }
-
-    const { data, error } = await query;
-
-    if (error) throw error;
-    return data.length > 0;
+    
+    return !querySnapshot.empty;
   } catch (error) {
-    console.error('Error checking duplicate cue number:', error);
+    console.error('Error checking for duplicate cue number:', error);
     throw error;
   }
 }
@@ -270,67 +304,69 @@ export async function checkDuplicateCueNumber(day_cue_list_id: string, cueNumber
 // Move a cue up by swapping with the previous cue
 export async function moveCueUp(cue: Cue, previousCue: Cue): Promise<[Cue, Cue]> {
   try {
-    console.log('Moving cue up:', { cue, previousCue });
+    const batch = writeBatch(db);
     
+    // Get references to both documents
+    const cueRef = doc(db, COLLECTION_NAME, cue.id);
+    const prevCueRef = doc(db, COLLECTION_NAME, previousCue.id);
+    
+    // Swap cue numbers
     const tempCueNumber = cue.cue_number;
+    const tempDisplayId = cue.display_id;
     
-    // Update first cue
-    const { data: firstUpdate, error: firstError } = await supabase
-      .from(TABLE_NAME)
-      .update({ cue_number: previousCue.cue_number })
-      .eq('id', cue.id)
-      .select()
-      .single();
-
-    if (firstError) {
-      console.error('Error updating first cue:', firstError);
-      throw firstError;
+    // Update the current cue
+    batch.update(cueRef, {
+      cue_number: previousCue.cue_number,
+      display_id: previousCue.display_id,
+      updated_at: serverTimestamp()
+    });
+    
+    // Update the previous cue
+    batch.update(prevCueRef, {
+      cue_number: tempCueNumber,
+      display_id: tempDisplayId,
+      updated_at: serverTimestamp()
+    });
+    
+    // Commit the batch
+    await batch.commit();
+    
+    // Get the updated documents
+    const [updatedCueSnap, updatedPrevCueSnap] = await Promise.all([
+      getDoc(cueRef),
+      getDoc(prevCueRef)
+    ]);
+    
+    if (!updatedCueSnap.exists() || !updatedPrevCueSnap.exists()) {
+      throw new Error('Failed to retrieve updated cues after moving');
     }
-
-    // Update second cue
-    const { data: secondUpdate, error: secondError } = await supabase
-      .from(TABLE_NAME)
-      .update({ cue_number: tempCueNumber })
-      .eq('id', previousCue.id)
-      .select()
-      .single();
-
-    if (secondError) {
-      console.error('Error updating second cue:', secondError);
-      throw secondError;
-    }
-
-    if (!firstUpdate || !secondUpdate) {
-      throw new Error('Failed to update one or both cues');
-    }
-
-    return [firstUpdate, secondUpdate];
+    
+    const updatedCue = {
+      id: updatedCueSnap.id,
+      ...updatedCueSnap.data() as Omit<Cue, 'id'>
+    };
+    
+    const updatedPrevCue = {
+      id: updatedPrevCueSnap.id,
+      ...updatedPrevCueSnap.data() as Omit<Cue, 'id'>
+    };
+    
+    return [updatedCue, updatedPrevCue];
   } catch (error) {
-    console.error('Error in moveCueUp:', error);
-    if (error instanceof Error) {
-      console.error('Error message:', error.message);
-    }
+    console.error('Error moving cue up:', error);
     throw error;
   }
 }
 
 // Move a cue down by swapping with the next cue
 export async function moveCueDown(cue: Cue, nextCue: Cue): Promise<[Cue, Cue]> {
-  try {
-    console.log('Moving cue down:', { cue, nextCue });
-    return moveCueUp(nextCue, cue);
-  } catch (error) {
-    console.error('Error in moveCueDown:', error);
-    if (error instanceof Error) {
-      console.error('Error message:', error.message);
-    }
-    throw error;
-  }
+  // This is just the inverse of moveCueUp
+  return moveCueUp(nextCue, cue);
 }
 
 // Helper functions for cue number generation
 
-function generateCueNumberBefore(number: string): string {
+export function generateCueNumberBefore(number: string): string {
   const prefix = number.charAt(0);
   const numeric = parseInt(number.substring(1));
   if (numeric > 101) {
@@ -341,7 +377,7 @@ function generateCueNumberBefore(number: string): string {
   return `${newPrefix}999`;
 }
 
-function generateCueNumberAfter(number: string): string {
+export function generateCueNumberAfter(number: string): string {
   const prefix = number.charAt(0);
   const numeric = parseInt(number.substring(1));
   if (numeric < 999) {
@@ -352,7 +388,7 @@ function generateCueNumberAfter(number: string): string {
   return `${newPrefix}101`;
 }
 
-function generateCueNumberBetween(before: string, after: string): string {
+export function generateCueNumberBetween(before: string, after: string): string {
   const beforePrefix = before.charAt(0);
   const afterPrefix = after.charAt(0);
   const beforeNumeric = parseInt(before.substring(1));

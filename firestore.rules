@@ -1,0 +1,59 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Users can read and write their own data
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth.uid == userId;
+    }
+    
+    // Shows can be read by creator and collaborators
+    match /shows/{showId} {
+      function isCreator() {
+        return request.auth.uid == resource.data.creatorId;
+      }
+      
+      function isCollaborator() {
+        return exists(/databases/$(database)/documents/shows/$(showId)/collaborators/$(request.auth.uid));
+      }
+      
+      function canEdit() {
+        return isCreator() || 
+          (isCollaborator() && get(/databases/$(database)/documents/shows/$(showId)/collaborators/$(request.auth.uid)).data.canEdit == true);
+      }
+      
+      allow read: if request.auth != null && (isCreator() || isCollaborator());
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && canEdit();
+      
+      // Day Cue Lists
+      match /dayCueLists/{dayCueListId} {
+        allow read: if request.auth != null && (isCreator() || isCollaborator());
+        allow write: if request.auth != null && canEdit();
+        
+        // Cues
+        match /cues/{cueId} {
+          allow read: if request.auth != null && (isCreator() || isCollaborator());
+          allow write: if request.auth != null && canEdit();
+        }
+      }
+      
+      // Collaborators
+      match /collaborators/{userId} {
+        allow read: if request.auth != null && (isCreator() || isCollaborator());
+        allow create, update, delete: if request.auth != null && isCreator();
+      }
+    }
+    
+    // Invitations
+    match /invitations/{invitationId} {
+      allow read: if request.auth != null && 
+        (resource.data.email == request.auth.token.email || 
+         resource.data.creatorId == request.auth.uid);
+      allow create: if request.auth != null && 
+        exists(/databases/$(database)/documents/shows/$(request.resource.data.showId)/collaborators/$(request.auth.uid));
+      allow delete: if request.auth != null && 
+        (resource.data.creatorId == request.auth.uid);
+    }
+  }
+}
