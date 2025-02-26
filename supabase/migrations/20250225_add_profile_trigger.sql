@@ -12,6 +12,7 @@ BEGIN
       'user_' || SUBSTR(MD5(NEW.email), 1, 5)
     END INTO username_value;
     
+  -- Insert the profile with ON CONFLICT DO NOTHING to handle any existing profiles
   INSERT INTO public.profiles (id, full_name, username)
   VALUES (
     NEW.id,
@@ -20,7 +21,9 @@ BEGIN
       NEW.raw_user_meta_data->>'username',
       username_value
     )
-  );
+  )
+  ON CONFLICT (id) DO NOTHING;
+  
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

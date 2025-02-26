@@ -30,7 +30,7 @@ export default function SignUpForm() {
     setLoading(true);
 
     try {
-      // Step 1: Sign up the user with Supabase Auth
+      // Sign up the user with Supabase Auth
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -65,45 +65,9 @@ export default function SignUpForm() {
         return;
       }
 
-      // Step 2: If user was created successfully, attempt to create a profile
+      // If user was created successfully, redirect to email verification page
       if (data.user) {
-        try {
-          // Check if a profile already exists for this user
-          const { data: profileData, error: profileError } = await supabase
-            .from('profiles')
-            .select('id')
-            .eq('id', data.user.id)
-            .single();
-
-          if (profileError && !profileError.message.includes('No rows found')) {
-            console.error('Error checking profile:', profileError);
-          }
-
-          // If no profile exists, create one
-          if (!profileData) {
-            const { error: insertError } = await supabase
-              .from('profiles')
-              .insert([
-                { 
-                  id: data.user.id,
-                  username: email.split('@')[0].length >= 3 
-                    ? email.split('@')[0].substring(0, 20)
-                    : `user_${Math.random().toString(36).substring(2, 7)}`,
-                  full_name: '' 
-                }
-              ]);
-
-            if (insertError) {
-              console.error('Error creating profile:', insertError);
-              // Continue even if profile creation fails
-            }
-          }
-        } catch (profileCreationError) {
-          console.error('Exception during profile creation:', profileCreationError);
-          // Continue anyway, as auth was successful
-        }
-
-        // Redirect to email verification page
+        // The profile will be created automatically by the database trigger
         router.push('/auth/verify-email?email=' + encodeURIComponent(email));
       }
     } catch (error) {
