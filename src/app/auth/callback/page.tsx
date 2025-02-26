@@ -18,7 +18,9 @@ export default function AuthCallbackPage() {
         const next = searchParams.get('next') || '/dashboard';
         
         if (!code) {
-          throw new Error('No code provided in the URL');
+          console.log('No code provided in the URL, redirecting to login');
+          router.push('/auth/login?error=' + encodeURIComponent('Authentication failed: No code provided'));
+          return;
         }
 
         setVerifying(true);
