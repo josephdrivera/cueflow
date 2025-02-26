@@ -30,25 +30,45 @@ export default function SignUpForm() {
     setLoading(true);
 
     try {
+      // Sign up the user with Supabase Auth
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           emailRedirectTo: `${window.location.origin}/auth/callback`,
+          data: {
+            full_name: '',  // Default empty values for profile data
+            username: email.split('@')[0].length >= 3 
+              ? email.split('@')[0].substring(0, 20) // Use part of email as default username with max length
+              : `user_${Math.random().toString(36).substring(2, 7)}`, // Fallback for short email prefixes
+          }
         },
       });
 
       if (error) {
+        console.error('Supabase signup error:', error);
+        console.error('Error details:', {
+          message: error.message,
+          status: error.status,
+          name: error.name,
+          stack: error.stack
+        });
+        
         // Handle specific error cases
         if (error.message.toLowerCase().includes('email already registered')) {
           setError('This email is already registered. Please try logging in instead.');
           return;
         }
-        throw error;
+        
+        // Set a more informative error message
+        setError(`Signup failed: ${error.message} (Status: ${error.status || 'unknown'})`);
+        return;
       }
 
+      // If user was created successfully, redirect to email verification page
       if (data.user) {
-        router.push('/auth/verify-email');
+        // The profile will be created automatically by the database trigger
+        router.push('/auth/verify-email?email=' + encodeURIComponent(email));
       }
     } catch (error) {
       if (error instanceof Error) {

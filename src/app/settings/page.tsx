@@ -209,7 +209,7 @@ export default function SettingsPage() {
                   await supabase.auth.signOut();
                   router.push('/login');
                 }}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 text-red-600 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+                className="flex gap-2 justify-center items-center px-4 py-3 w-full text-red-600 bg-red-50 rounded-lg transition-colors hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/30"
               >
                 <LogOut className="w-5 h-5" />
                 <span className="font-medium">Logout</span>

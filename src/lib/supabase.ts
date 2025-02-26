@@ -11,6 +11,7 @@ const requiredEnvVars = {
 // Validate environment variables
 Object.entries(requiredEnvVars).forEach(([name, value]) => {
   if (!value) {
+    console.error(`Missing environment variable: ${name}`);
     throw new Error(`Missing environment variable: ${name}`);
   }
 });
@@ -18,14 +19,17 @@ Object.entries(requiredEnvVars).forEach(([name, value]) => {
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables');
-}
-
 // Create and configure Supabase client
 export const supabase = createBrowserClient(
   supabaseUrl,
-  supabaseAnonKey
+  supabaseAnonKey,
+  {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true
+    }
+  }
 );
 
 export default supabase;
